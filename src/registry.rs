@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright © 2026 Eduard Smet */
 
+pub mod plugins;
+
 use std::{
     collections::{BTreeMap, HashMap},
     io::ErrorKind,
@@ -8,61 +10,60 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use anyhow::{Error, Result};
+use anyhow::{Result, bail};
 use semver::{Version, VersionReq};
 use serde::Deserialize;
-use tokio::fs;
-use tracing::{error, info, warn};
+use tokio::{fs, task::JoinHandle};
+use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
-    config::Config,
+    config::plugins::ConfigPlugin,
     http::HttpClient,
-    plugins::{AvailablePlugin, ConfigPlugin},
+    registry::plugins::{AvailablePlugin, RegistryPlugin, RegistryPluginVersion},
 };
 
 #[derive(Deserialize)]
-#[allow(unused)]
 pub struct Registry {
+    #[allow(unused)]
     pub name: String,
+    #[allow(unused)]
     pub description: String,
+    #[allow(unused)]
     pub maintainers: Vec<String>,
     pub plugins: BTreeMap<String, RegistryPlugin>,
 }
 
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct RegistryPlugin {
-    pub versions: Vec<RegistryPluginVersion>,
-    pub description: String,
-}
+type RegistryTask = Vec<JoinHandle<Result<Vec<(Uuid, AvailablePlugin)>>>>;
 
-#[derive(Deserialize)]
-#[allow(unused)]
-pub struct RegistryPluginVersion {
-    pub version: String,
-    pub release_time: String,
-    pub compatible_program_version: String,
-    pub deprecated: Option<bool>,
-    pub deprecation_reason: Option<String>,
-}
-
-type RegistryTask = Vec<tokio::task::JoinHandle<Result<Vec<(String, AvailablePlugin)>>>>;
-
+// TODO: Update URL when the plugin registry moves
 static DEFAULT_REGISTRY_ID: &str =
     "raw.githubusercontent.com/celarye/discord-bot-plugins/refs/heads/master";
 
 static PROGRAM_VERSION: LazyLock<Version> =
     LazyLock::new(|| Version::parse(env!("CARGO_PKG_VERSION")).unwrap());
 
+pub async fn registry_get_plugins(
+    http_client_timeout_seconds: u64,
+    config: HashMap<String, ConfigPlugin>,
+    plugin_directory_path: PathBuf,
+    cache: bool,
+) -> Result<Vec<(Uuid, AvailablePlugin)>> {
+    let http_client = Arc::new(HttpClient::new(http_client_timeout_seconds)?);
+
+    get_plugins(http_client, config, plugin_directory_path, cache).await
+}
+
+#[hotpath::measure]
 pub async fn get_plugins(
     http_client: Arc<HttpClient>,
-    config: Config,
+    config: HashMap<String, ConfigPlugin>,
     base_plugin_directory_path: PathBuf,
     cache: bool,
-) -> Result<HashMap<String, AvailablePlugin>, ()> {
+) -> Result<Vec<(Uuid, AvailablePlugin)>> {
     info!("Fetching and storing the plugins");
 
-    let mut available_plugins = HashMap::new();
+    let mut available_plugins = Vec::new();
 
     let registries = get_cached_plugins(
         &base_plugin_directory_path,
@@ -81,8 +82,7 @@ pub async fn get_plugins(
     .await;
 
     if available_plugins.is_empty() {
-        warn!("No plugins are available for the runtime");
-        return Err(());
+        bail!("No plugins are available for the runtime");
     }
 
     Ok(available_plugins)
@@ -90,13 +90,13 @@ pub async fn get_plugins(
 
 async fn get_cached_plugins(
     base_plugin_directory_path: &Path,
-    config: Config,
+    config: HashMap<String, ConfigPlugin>,
     cache: bool,
-    available_plugins: &mut HashMap<String, AvailablePlugin>,
+    available_plugins: &mut Vec<(Uuid, AvailablePlugin)>,
 ) -> HashMap<String, Vec<(String, ConfigPlugin)>> {
     let mut registries = HashMap::new();
 
-    for (plugin_uid, plugin_options) in config.plugins {
+    for (plugin_uid, plugin_options) in config {
         let (plugin_string, plugin_requested_version) =
             parse_plugin_string_requested_version(&plugin_options.plugin);
         let (registry_id, plugin_id) = parse_plugin_string_registry_id(plugin_string);
@@ -112,17 +112,18 @@ async fn get_cached_plugins(
             {
                 Ok(cache_check) => {
                     if let Some(plugin_version) = cache_check {
-                        available_plugins.insert(
-                            plugin_uid,
+                        available_plugins.push((
+                            Uuid::new_v4(),
                             AvailablePlugin {
                                 registry_id: registry_id.to_string(),
-                                id: plugin_id.to_string(),
+                                plugin_id: plugin_id.to_string(),
+                                user_id: plugin_uid,
                                 version: plugin_version,
                                 permissions: plugin_options.permissions,
                                 environment: plugin_options.environment,
                                 settings: plugin_options.settings,
                             },
-                        );
+                        ));
 
                         continue;
                     }
@@ -135,7 +136,7 @@ async fn get_cached_plugins(
 
         registries
             .entry(registry_id.to_string())
-            .or_insert(vec![])
+            .or_insert(Vec::new())
             .push((plugin_uid, plugin_options));
     }
 
@@ -146,9 +147,9 @@ async fn fetch_non_cached_plugins(
     http_client: Arc<HttpClient>,
     base_plugin_directory_path: &Path,
     registries: HashMap<String, Vec<(String, ConfigPlugin)>>,
-    available_plugins: &mut HashMap<String, AvailablePlugin>,
+    available_plugins: &mut Vec<(Uuid, AvailablePlugin)>,
 ) {
-    let mut registry_tasks: RegistryTask = vec![];
+    let mut registry_tasks: RegistryTask = Vec::new();
 
     for (registry_id, plugins) in registries {
         let http_client = http_client.clone();
@@ -156,11 +157,11 @@ async fn fetch_non_cached_plugins(
         let registry_id = Arc::new(registry_id);
 
         registry_tasks.push(tokio::spawn(async move {
-            let mut available_registry_plugins = vec![];
+            let mut available_registry_plugins = Vec::new();
 
             let registry = Arc::new(fetch_registry(http_client.clone(), &registry_id, &registry_directory_path).await?);
 
-            let mut plugin_tasks = vec![];
+            let mut plugin_tasks = Vec::new();
 
             for (plugin_uid, plugin_options) in plugins {
                 let http_client = http_client.clone();
@@ -175,8 +176,8 @@ async fn fetch_non_cached_plugins(
                     let mut plugin_directory_path = registry_directory_path.join(plugin_id);
 
                     let Some(registry_plugin) = registry.plugins.get(plugin_id) else {
-                        return Err(Error::msg(format!("The {registry_id} registry has no {plugin_id} plugin entry",
-                        )));
+                        bail!("The {registry_id} registry has no {plugin_id} plugin entry",
+                        );
                     };
 
                     let Some(plugin_version) = get_plugin_matching_version(
@@ -184,8 +185,8 @@ async fn fetch_non_cached_plugins(
                         &registry_plugin.versions,
                     )?
                     else {
-                        return Err(Error::msg(format!(
-                        "The {plugin_uid} plugin has no version which isn't marked as deprecated and is compatible with this version of the program")));
+                        bail!(
+                        "The {plugin_uid} plugin has no version which isn't marked as deprecated and is compatible with this version of the program");
                     };
 
                     plugin_directory_path.push(plugin_version.to_string());
@@ -202,10 +203,11 @@ async fn fetch_non_cached_plugins(
                     .await?;
 
                     Ok((
-                        plugin_uid,
+                        Uuid::new_v4(),
                         AvailablePlugin {
                             registry_id: registry_id.to_string(),
-                            id: plugin_id.to_string(),
+                            plugin_id: plugin_id.to_string(),
+                            user_id: plugin_uid,
                             version: plugin_version,
                             permissions: plugin_options.permissions,
                             environment: plugin_options.environment,
@@ -230,8 +232,7 @@ async fn fetch_non_cached_plugins(
         match registry_task.await.unwrap() {
             Ok(available_registry_plugins) => {
                 for available_registry_plugin in available_registry_plugins {
-                    available_plugins
-                        .insert(available_registry_plugin.0, available_registry_plugin.1);
+                    available_plugins.push(available_registry_plugin);
                 }
             }
             Err(err) => {
@@ -301,7 +302,7 @@ async fn get_plugin_latest_cached_version(plugin_path: &Path) -> Result<Option<V
                 return Ok(None);
             }
 
-            return Err(Error::new(err));
+            bail!(err);
         }
     };
 
@@ -395,7 +396,7 @@ async fn fetch_registry(
     )
     .await?;
 
-    sonic_rs::from_slice::<Registry>(&registry_metadata_bytes).map_err(Error::new)
+    Ok(sonic_rs::from_slice::<Registry>(&registry_metadata_bytes)?)
 }
 
 async fn fetch_plugin(

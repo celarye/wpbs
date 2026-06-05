@@ -3,38 +3,50 @@
 
 use std::{env, path::Path};
 
-use tracing::{debug, error, info};
+use anyhow::{Result, bail};
+use tracing::{debug, info};
 
-use dotenvy;
+use crate::config::services::ConfigServices;
 
-pub fn load_env_file(env_file: &Path) -> Result<(), ()> {
+pub struct Secrets {
+    pub services: SecretsServices,
+}
+
+pub struct SecretsServices {
+    pub discord: Option<SecretsDiscord>,
+}
+
+pub struct SecretsDiscord {
+    pub bot_token: String,
+}
+
+pub fn load_env_file(env_file_path: &Path) -> Result<()> {
     info!("Loading the env file");
 
-    if let Err(err) = dotenvy::from_path(env_file) {
+    if let Err(err) = dotenvy::from_path(env_file_path) {
         if err.not_found() {
-            debug!("No env file found for the following path: {env_file:?}");
+            debug!("No env file found at: {env_file_path:?}");
             return Ok(());
         }
 
-        error!("An error occurred wile trying to load the env file: {err}");
-
-        return Err(());
+        bail!("An error occurred wile trying to load the env file: {err}");
     }
 
     Ok(())
 }
 
-pub fn validate() -> Result<String, ()> {
-    info!("Validating the environment variables (DISCORD_BOT_CLIENT_TOKEN)");
+pub fn get_secrets(config: &ConfigServices) -> Result<Secrets> {
+    info!("Validating the environment variables");
 
-    if let Ok(value) = env::var("DISCORD_BOT_CLIENT_TOKEN") {
-        debug!("DISCORD_BOT_CLIENT_TOKEN environment variable was found: {value:.3}... (redacted)");
+    let mut secrets = Secrets {
+        services: SecretsServices { discord: None },
+    };
 
-        Ok(value)
-    } else {
-        error!(
-            "The DISCORD_BOT_CLIENT_TOKEN environment variable was not set, contains an illegal character ('=' or '0') or was not valid unicode"
-        );
-        Err(())
+    if config.discord.enabled {
+        secrets.services.discord = Some(SecretsDiscord {
+            bot_token: env::var("DISCORD_BOT_TOKEN")?,
+        });
     }
+
+    Ok(secrets)
 }

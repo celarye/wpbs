@@ -5,32 +5,25 @@ pub mod registry;
 
 use std::time::Duration;
 
+use anyhow::Result;
 use reqwest::Client;
-use tracing::{error, info};
+use tracing::info;
 
 pub struct HttpClient {
     client: Client,
 }
 
-static USER_AGENT: &str = "celarye/discord-bot";
+static USER_AGENT: &str = "wpbs-rs/wpbs";
 
 impl HttpClient {
-    pub fn new(http_client_timeout_seconds: u64) -> Result<Self, ()> {
+    pub fn new(http_client_timeout_seconds: u64) -> Result<Self> {
         info!("Creating the HTTP client");
 
-        match Client::builder()
+        let client = Client::builder()
             .user_agent(USER_AGENT)
             .timeout(Duration::from_secs(http_client_timeout_seconds))
-            .build()
-        {
-            Ok(client) => Ok(HttpClient { client }),
-            Err(err) => {
-                error!(
-                    "Something went wrong while creating the request client: {}",
-                    &err
-                );
-                Err(())
-            }
-        }
+            .build()?;
+
+        Ok(HttpClient { client })
     }
 }

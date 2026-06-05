@@ -1,41 +1,40 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright © 2026 Eduard Smet */
 
-use std::{fs, path::Path};
+use std::{collections::HashMap, fs, path::Path};
 
-use indexmap::IndexMap;
+use anyhow::Result;
 use serde::Deserialize;
-use tracing::{error, info};
+use tracing::info;
 
-use crate::plugins::ConfigPlugin;
+use crate::config::{plugins::ConfigPlugin, services::ConfigServices};
+
+pub mod plugins;
+pub mod services;
 
 #[derive(Deserialize)]
 pub struct Config {
-    #[allow(unused)] // Will be used when multi discord bot client support gets added
+    #[allow(unused)] // Will be used when multi instance support gets added
     pub name: String,
-    pub plugins: IndexMap<String, ConfigPlugin>,
+    #[serde(default)]
+    pub services: ConfigServices,
+    pub plugins: HashMap<String, ConfigPlugin>,
 }
 
 impl Config {
-    pub fn new(file_path: &Path) -> Result<Self, ()> {
+    pub fn new(file_path: &Path) -> Result<Self> {
         info!("Loading and parsing the config file");
 
-        let file_bytes = match fs::read(file_path) {
-            Ok(file_bytes) => file_bytes,
-            Err(err) => {
-                error!("An error occurred while trying to read the config file: {err}");
-                return Err(());
-            }
-        };
+        let file_bytes = fs::read(file_path)?;
 
-        match serde_yaml_ng::from_slice::<Config>(&file_bytes) {
-            Ok(config) => Ok(config), // TODO: Env var interpolation
-            Err(err) => {
-                error!(
-                    "An error occurred while trying to deserialize the config file YAML to a struct: {err}"
-                );
-                Err(())
-            }
-        }
+        // TODO: Add environment variable interpolation
+        let mut config = serde_yaml_ng::from_slice::<Config>(&file_bytes)?;
+
+        config
+            .plugins
+            .values_mut()
+            .for_each(|p| p.permissions.calculate());
+
+        Ok(config)
     }
 }

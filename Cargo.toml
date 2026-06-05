@@ -1,47 +1,53 @@
 [package]
-name = "discord-bot"
-description = "A WASI plugin based Discord bot, configurable through YAML."
+name = "wpbs"
+description = "WASM plugin based services."
 version = "0.1.0"
 authors = ["Eduard Smet <contact@celarye.dev>"]
 license = "GPL-3.0-or-later"
 edition = "2024"
 
 [features]
+hotpath = ["hotpath/hotpath"]
+hotpath-cpu = ["hotpath/hotpath-cpu"]
+hotpath-alloc = ["hotpath/hotpath-alloc"]
 
 [dependencies]
-anyhow = "1"
-bytes = "1"
-chrono = "0.4"
-clap = { version = "4", features = ["derive"] }
-dotenvy = "0.15"
-indexmap = "2"
-reqwest = { version = "0.13", features = ["hickory-dns"] }
-rustls = "0.23"
-semver = "1"
-serde = "1"
-serde_yaml_ng = "0.10" # Should replace this with a better maintained YAML 1.2 supporting alternative
-sonic-rs = "0.5"
-tokio = { version = "1", features = ["full"] }
-tokio-cron-scheduler = { version = "0.15", features = ["english"] }
-tokio-util = "0.7"
-tracing = "0.1"
-tracing-subscriber = "0.3"
-tracing-appender = "0.2"
-twilight-cache-inmemory = { git = "https://github.com/celarye/twilight/", branch = "feat/form-buffer" }
-twilight-gateway = { git = "https://github.com/celarye/twilight/", branch = "feat/form-buffer", features = [
+anyhow = "1.0.102"
+bytes = "1.11.1"
+chrono = "0.4.44"
+clap = { version = "4.6.1", features = ["derive"] }
+cron = "0.16.0"
+dotenvy = "0.15.7"
+fjall = "3.1.4"
+hashbrown = "0.17.1"
+hotpath = "0.16.1"
+reqwest = { version = "0.13.3", features = ["hickory-dns"] }
+rustls = "0.23.40"
+semver = "1.0.28"
+serde = "1.0.228"
+serde_yaml_ng = "0.10.0"                                     # Should replace this with a better maintained YAML 1.2 supporting alternative
+sonic-rs = "0.5.8"
+tokio = { version = "1.52.3", features = ["full"] }
+tokio-util = { version = "0.7.18", features = ["rt"] }
+tracing = "0.1.44"
+tracing-appender = "0.2.5"
+tracing-subscriber = "0.3.23"
+#twilight-cache-inmemory = { git = "https://github.com/celarye/twilight/" }
+twilight-gateway = { git = "https://github.com/celarye/twilight/", features = [
   "simd-json",
 ] }
-twilight-http = { git = "https://github.com/celarye/twilight/", branch = "feat/form-buffer", features = [
+twilight-http = { git = "https://github.com/celarye/twilight/", features = [
   "simd-json",
   "hickory",
 ] }
-twilight-model = { git = "https://github.com/celarye/twilight/", branch = "feat/form-buffer" }
-url = "2"
-wasmtime = "41"
-wasmtime-wasi = "41"
-wasmtime-wasi-http = "41"
+twilight-model = { git = "https://github.com/celarye/twilight/" }
+url = "2.5.8"
+uuid = "1.23.1"
+wasmtime = "45.0.0"
+wasmtime-wasi = "45.0.0"
+wasmtime-wasi-http = "45.0.0"
 
 [profile.release]
-lto = true
+lto = "fat"
 codegen-units = 1
-strip = true
+strip = "symbols"
