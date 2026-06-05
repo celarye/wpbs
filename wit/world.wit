@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright © 2026 Eduard Smet */
 
-package wpbs:plugin@0.1.0;
+package wpbs:plugin@0.1.0-rc.1;
 
 world plugin {
     import core-import-functions;

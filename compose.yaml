@@ -2,7 +2,7 @@ name: wpbs-stack
 
 services:
   wpbs:
-    image: ghcr.io/wpbs-rs/wpbs:latest
+    image: ghcr.io/wpbs-rs/wpbs:0.1.0-rc.1
     #build: .
     container_name: wpbs
     environment:
