@@ -113,7 +113,10 @@ interface discord-import-types {
         form(form),
     }
 
-    type form = list<u8>;
+    record form {
+        boundary: list<u8>,
+        buffer: list<u8>,
+    }
 
     // Discord Responses
     type discord-responses = json;
