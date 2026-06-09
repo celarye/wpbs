@@ -3578,9 +3578,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
+name = "twilight-cache-inmemory"
+version = "0.17.1"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
+dependencies = [
+ "bitflags",
+ "dashmap",
+ "serde",
+ "twilight-model",
+]
+
+[[package]]
 name = "twilight-gateway"
 version = "0.17.1"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "bitflags",
  "fastrand",
@@ -3601,7 +3612,7 @@ dependencies = [
 [[package]]
 name = "twilight-gateway-queue"
 version = "0.17.0"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "tokio",
  "tracing",
@@ -3610,7 +3621,7 @@ dependencies = [
 [[package]]
 name = "twilight-http"
 version = "0.17.1"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "brotli-decompressor",
  "fastrand",
@@ -3635,7 +3646,7 @@ dependencies = [
 [[package]]
 name = "twilight-http-ratelimiting"
 version = "0.17.1"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "hashbrown 0.16.1",
  "tokio",
@@ -3646,7 +3657,7 @@ dependencies = [
 [[package]]
 name = "twilight-model"
 version = "0.17.1"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "bitflags",
  "serde",
@@ -3658,7 +3669,7 @@ dependencies = [
 [[package]]
 name = "twilight-validate"
 version = "0.17.0"
-source = "git+https://github.com/celarye/twilight/#677dc72d5cc0a087d74ddb0ac0ddc8d655ac324e"
+source = "git+https://github.com/celarye/twilight/#2e7fe1241b296e1733c8953d5d1ecded953fbc4c"
 dependencies = [
  "twilight-model",
 ]
@@ -5020,6 +5031,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "twilight-cache-inmemory",
  "twilight-gateway",
  "twilight-http",
  "twilight-model",

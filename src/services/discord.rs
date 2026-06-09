@@ -10,7 +10,7 @@ use tokio::{
 };
 use tokio_util::task::TaskTracker;
 use tracing::{error, info};
-//use twilight_cache_inmemory::{DefaultInMemoryCache, InMemoryCache};
+use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{CloseFrame, Config, EventType, Intents, MessageSender, Shard, StreamExt};
 use twilight_http::Client;
 
@@ -31,7 +31,7 @@ pub struct Discord {
     http_client: Arc<Client>,
     shards: Vec<(Shard, Intents)>,
     shard_message_senders: Arc<Vec<MessageSender>>,
-    //cache: Arc<InMemoryCache>,
+    cache: Arc<InMemoryCache>,
     core_tx: Arc<UnboundedSender<CoreMessages>>,
     rx: UnboundedReceiver<DiscordMessages>,
 }
@@ -67,14 +67,20 @@ impl Discord {
         let (shards, shard_message_senders) =
             Self::get_shard_message_senders(Box::new(shard_iterator), intents);
 
-        // TODO: Use the in memory cache
-        //let cache = Arc::new(DefaultInMemoryCache::default());
+        let cache_resource_type = ResourceType::USER_CURRENT | ResourceType::GUILD;
+
+        let cache = Arc::new(
+            InMemoryCache::builder()
+                .resource_types(cache_resource_type)
+                .message_cache_size(0)
+                .build(),
+        );
 
         Ok(Self {
             http_client: Arc::new(http_client),
             shards,
             shard_message_senders: Arc::new(shard_message_senders),
-            //cache,
+            cache,
             core_tx: Arc::new(core_tx),
             rx,
         })
@@ -89,7 +95,7 @@ impl Discord {
             shard_tasks.push(tokio::spawn(Self::shard_runner(
                 shard.0,
                 shard.1,
-                //self.cache.clone(),
+                self.cache.clone(),
                 self.core_tx.clone(),
             )));
         }
@@ -100,6 +106,7 @@ impl Discord {
                     DiscordMessages::RegisterApplicationCommands => {
                         http_task_tracker.spawn(Self::application_command_registrations(
                             self.http_client.clone(),
+                            self.cache.clone(),
                             self.core_tx.clone(),
                         ));
                     }
@@ -129,7 +136,7 @@ impl Discord {
     async fn shard_runner(
         mut shard: Shard,
         intents: Intents,
-        //cache: Arc<InMemoryCache>,
+        cache: Arc<InMemoryCache>,
         core_tx: Arc<UnboundedSender<CoreMessages>>,
     ) {
         while let Some(item) = shard.next_event(intents.into()).await {
@@ -146,7 +153,7 @@ impl Discord {
                 break;
             }
 
-            //cache.update(&event);
+            cache.update(&event);
 
             tokio::spawn(Self::handle_event(core_tx.clone(), event));
         }
