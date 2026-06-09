@@ -8,6 +8,7 @@ use fjall::Slice;
 use hashbrown::{Equivalent, HashMap};
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 use tracing::{error, info};
+use twilight_cache_inmemory::InMemoryCache;
 use twilight_http::{Client, request::Request, routing::Route};
 use twilight_model::{
     application::command::Command,
@@ -41,6 +42,7 @@ impl Discord {
     #[allow(clippy::too_many_lines)]
     pub async fn application_command_registrations(
         http_client: Arc<Client>,
+        cache: Arc<InMemoryCache>,
         core_tx: Arc<UnboundedSender<CoreMessages>>,
     ) {
         info!("Managing Discord application command registrations");
@@ -133,7 +135,6 @@ impl Discord {
             }
         };
 
-        // TODO: Continue logic checking and fixing from here (review: 5./6.)
         match http_client
             .request::<Vec<Command>>(global_discord_commands_request)
             .await
@@ -167,46 +168,10 @@ impl Discord {
             }
         }
 
-        // TODO: Rework to a gateway based retrieval system (using `GuildCreate`).
-        let mut current_user_guilds = Vec::new();
-
-        let mut request = http_client.current_user_guilds();
-        loop {
-            match request.await {
-                Ok(response) => match response.model().await {
-                    Ok(mut user_guilds) => {
-                        if user_guilds.is_empty() {
-                            break;
-                        }
-
-                        request = http_client
-                            .current_user_guilds()
-                            .after(user_guilds.last().unwrap().id);
-
-                        current_user_guilds.append(&mut user_guilds);
-                    }
-                    Err(err) => {
-                        error!(
-                            "Something went wrong while deserializing the guild application commands, error: {}",
-                            &err
-                        );
-                        return;
-                    }
-                },
-                Err(err) => {
-                    error!(
-                        "Something went wrong while requesting the guild application commands, error: {}",
-                        &err
-                    );
-                    return;
-                }
-            }
-        }
-
-        for current_user_guild in current_user_guilds {
+        for guild in cache.iter().guilds() {
             let guild_commands_request = match Request::builder(&Route::GetGuildCommands {
                 application_id: application_id.get(),
-                guild_id: current_user_guild.id.get(),
+                guild_id: guild.id().get(),
                 with_localizations: Some(true),
             })
             .build()
