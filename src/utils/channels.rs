@@ -7,6 +7,7 @@ use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     oneshot::Sender as OSSender,
 };
+use tracing::debug;
 use uuid::Uuid;
 
 use crate::{
@@ -123,6 +124,8 @@ pub struct ChannelsDiscord {
 }
 
 pub fn new(job_scheduler_enabled: bool, discord_enabled: bool) -> Channels {
+    debug!("Creating the channels");
+
     let (core_tx, core_rx) = unbounded_channel::<CoreMessages>();
 
     let (runtime_tx, runtime_rx) = unbounded_channel::<RuntimeMessages>();

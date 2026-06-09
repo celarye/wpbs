@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use reqwest::Client;
-use tracing::info;
+use tracing::debug;
 
 pub struct HttpClient {
     client: Client,
@@ -17,7 +17,7 @@ static USER_AGENT: &str = "wpbs-rs/wpbs";
 
 impl HttpClient {
     pub fn new(http_client_timeout_seconds: u64) -> Result<Self> {
-        info!("Creating the HTTP client");
+        debug!("Creating an HTTP client");
 
         let client = Client::builder()
             .user_agent(USER_AGENT)
