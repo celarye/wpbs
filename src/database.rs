@@ -11,6 +11,7 @@ use crate::utils::channels::DatabaseMessages;
 use anyhow::{Result, bail};
 use fjall::{Database, Guard, Iter, KeyspaceCreateOptions, PersistMode, Slice};
 use tokio::task::spawn_blocking;
+use tracing::debug;
 
 pub enum Keyspaces {
     PluginStore, // K: String (Uuid:String); V: Vec<u8>
@@ -24,6 +25,8 @@ pub enum Keyspaces {
 }
 
 pub fn new(database_directory_path: &Path) -> Result<Database> {
+    debug!("Creating the database");
+
     if let Err(err) = fs::create_dir_all(database_directory_path)
         && err.kind() != ErrorKind::AlreadyExists
     {
@@ -168,6 +171,8 @@ pub async fn clear(database: &Database, keyspace: &Keyspaces) -> Result<()> {
 
 // TODO: Review if this should this be async
 pub fn cleanup(database: &Database) -> Result<()> {
+    debug!("Cleaning up the database");
+
     for keyspace in [
         Keyspaces::DependencyFunctions,
         Keyspaces::DiscordEvents,

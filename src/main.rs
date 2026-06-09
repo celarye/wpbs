@@ -21,7 +21,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use tracing_appender::non_blocking::WorkerGuard;
 
 mod cli;
@@ -154,6 +154,8 @@ fn message_handler(
     mut rx: UnboundedReceiver<CoreMessages>,
     mut shutdown_signal_listener: Option<JoinHandle<()>>,
 ) -> JoinHandle<Result<()>> {
+    debug!("Starting the message handler");
+
     let mut shutdown_task = None;
 
     tokio::spawn(async move {
@@ -260,6 +262,8 @@ async fn setup(
 }
 
 fn shutdown_signal_listener(core_tx: UnboundedSender<CoreMessages>) -> JoinHandle<()> {
+    debug!("Starting the shutdown signal listener");
+
     tokio::spawn(async move {
         signal::ctrl_c()
             .await

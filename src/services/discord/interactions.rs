@@ -45,8 +45,6 @@ impl Discord {
         cache: Arc<InMemoryCache>,
         core_tx: Arc<UnboundedSender<CoreMessages>>,
     ) {
-        info!("Managing Discord application command registrations");
-
         let (entries_sender, entries_receiver) = channel();
 
         core_tx
@@ -59,6 +57,15 @@ impl Discord {
             .unwrap();
 
         let entries: Vec<(Slice, Slice)> = entries_receiver.await.unwrap().unwrap();
+
+        if entries.is_empty() {
+            return;
+        }
+
+        info!(
+            "Managing {} Discord application command registrations",
+            entries.len()
+        );
 
         let (clear_sender, clear_receiver) = channel();
 
