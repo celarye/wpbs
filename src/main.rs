@@ -16,7 +16,7 @@ use fjall::{Database, PersistMode};
 use tokio::{
     signal,
     sync::{
-        RwLock,
+        RwLock, RwLockWriteGuard,
         mpsc::{UnboundedReceiver, UnboundedSender},
     },
     task::JoinHandle,
@@ -93,6 +93,8 @@ async fn main() -> Result<ExitCode> {
         config.services.discord.enabled,
     );
 
+    let tasks = TASKS.write().await;
+
     let shutdown_signal_listener = shutdown_signal_listener(channels.core.shutdown);
 
     let database = database::new(&cli.database_directory)?;
@@ -108,28 +110,20 @@ async fn main() -> Result<ExitCode> {
         Some(shutdown_signal_listener),
     );
 
-    if let Err(err) = setup(
+    let setup_result = setup(
+        tasks,
         cli.http_client_timeout_seconds,
         cli.plugin_directory,
         cli.cache,
         channels.services,
         channels.runtime,
-        &channels.core.post_start,
         config,
         secrets,
     )
-    .await
-    {
-        error!("A setup error occurred: {err}");
+    .await;
 
-        channels
-            .core
-            .post_start
-            .send(CoreMessages::Shutdown(Shutdown::Normal))
-            .unwrap();
-    }
+    post_setup(channels.core.post_setup, setup_result).await;
 
-    drop(channels.core.post_start);
     info!("Setup completed successfully");
 
     message_handler.await.unwrap()?;
@@ -208,12 +202,12 @@ fn message_handler(
 
 #[allow(clippy::too_many_arguments)]
 async fn setup(
+    mut tasks: RwLockWriteGuard<'_, Tasks>,
     http_client_timeout_seconds: u64,
     plugin_directory_path: PathBuf,
     cache: bool,
     service_channels: ChannelsServices,
     runtime_channels: ChannelsRuntime,
-    core_post_start_sender: &UnboundedSender<CoreMessages>,
     config: Config,
     secrets: Secrets,
 ) -> Result<()> {
@@ -225,31 +219,41 @@ async fn setup(
     )
     .await?;
 
-    services::start(config.services, secrets.services, service_channels).await?;
+    services::start(
+        &mut tasks,
+        config.services,
+        secrets.services,
+        service_channels,
+    )
+    .await?;
 
     let runtime = Runtime::new(runtime_channels.rx);
 
-    if SHUTDOWN.read().await.is_none() {
-        runtime
-            .initialize_plugins(
-                available_plugins,
-                runtime_channels.core_tx,
-                plugin_directory_path,
-            )
-            .await?;
-    }
+    runtime
+        .initialize_plugins(
+            available_plugins,
+            runtime_channels.core_tx,
+            plugin_directory_path,
+        )
+        .await?;
 
-    if SHUTDOWN.read().await.is_none() {
-        TASKS.write().await.runtime = Some(runtime.run());
-    } else {
-        drop(runtime);
-    }
-
-    if SHUTDOWN.read().await.is_none() {
-        services::post_start(core_post_start_sender).await;
-    }
+    tasks.runtime = Some(runtime.run());
 
     Ok(())
+}
+
+async fn post_setup(core_post_setup_tx: UnboundedSender<CoreMessages>, setup_result: Result<()>) {
+    if let Err(err) = setup_result {
+        error!("A setup error occurred: {err}");
+
+        core_post_setup_tx
+            .send(CoreMessages::Shutdown(Shutdown::Normal))
+            .unwrap();
+
+        return;
+    }
+
+    services::post_setup(&core_post_setup_tx).await;
 }
 
 fn shutdown_signal_listener(core_tx: UnboundedSender<CoreMessages>) -> JoinHandle<()> {
@@ -283,19 +287,21 @@ async fn shutdown(
     runtime_tx: Option<UnboundedSender<RuntimeMessages>>,
     shutdown_signal_listener: Option<JoinHandle<()>>,
 ) {
+    let mut tasks = TASKS.write().await;
+
     drop(runtime_tx.unwrap());
 
-    if let Some(runtime) = TASKS.write().await.runtime.take() {
+    if let Some(runtime) = tasks.runtime.take() {
         runtime.await.unwrap();
     }
 
     drop((job_scheduler_tx, discord_tx));
 
-    if let Some(job_scheduler) = TASKS.write().await.services.job_scheduler.take() {
+    if let Some(job_scheduler) = tasks.services.job_scheduler.take() {
         job_scheduler.await.unwrap();
     }
 
-    if let Some(discord) = TASKS.write().await.services.discord.take() {
+    if let Some(discord) = tasks.services.discord.take() {
         discord.await.unwrap();
     }
 

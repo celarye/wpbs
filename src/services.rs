@@ -2,10 +2,10 @@
 /* Copyright © 2026 Eduard Smet */
 
 use anyhow::Result;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{RwLockWriteGuard, mpsc::UnboundedSender};
 
 use crate::{
-    SHUTDOWN, TASKS,
+    TASKS, Tasks,
     config::services::ConfigServices,
     services::{discord::Discord, job_scheduler::JobScheduler},
     utils::{
@@ -18,19 +18,20 @@ pub mod discord;
 pub mod job_scheduler;
 
 pub async fn start(
+    tasks: &mut RwLockWriteGuard<'_, Tasks>,
     config: ConfigServices,
     secrets: SecretsServices,
     channels: ChannelsServices,
 ) -> Result<()> {
+    // TODO:
+    // - Make service starts concurrent
+    // - Bail if all services are disabled
+
     if let Some(job_scheduler_channels) = channels.job_scheduler {
         let job_scheduler =
             JobScheduler::new(job_scheduler_channels.core_tx, job_scheduler_channels.rx);
 
-        if SHUTDOWN.read().await.is_none() {
-            TASKS.write().await.services.job_scheduler = Some(job_scheduler.run());
-        } else {
-            drop(job_scheduler);
-        }
+        tasks.services.job_scheduler = Some(job_scheduler.run());
     }
 
     if let Some(discord_channels) = channels.discord {
@@ -42,17 +43,13 @@ pub async fn start(
         )
         .await?;
 
-        if SHUTDOWN.read().await.is_none() {
-            TASKS.write().await.services.discord = Some(discord.run());
-        } else {
-            drop(discord);
-        }
+        tasks.services.discord = Some(discord.run());
     }
 
     Ok(())
 }
 
-pub async fn post_start(core_tx: &UnboundedSender<CoreMessages>) {
+pub async fn post_setup(core_tx: &UnboundedSender<CoreMessages>) {
     if TASKS.read().await.services.discord.is_some() {
         let _ = core_tx.send(CoreMessages::Discord(
             DiscordMessages::RegisterApplicationCommands,

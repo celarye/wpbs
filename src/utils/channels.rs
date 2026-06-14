@@ -95,7 +95,7 @@ pub struct Channels {
 }
 
 pub struct ChannelsCore {
-    pub post_start: UnboundedSender<CoreMessages>,
+    pub post_setup: UnboundedSender<CoreMessages>,
     pub shutdown: UnboundedSender<CoreMessages>,
     pub job_scheduler_tx: Option<UnboundedSender<JobSchedulerMessages>>,
     pub discord_tx: Option<UnboundedSender<DiscordMessages>>,
@@ -160,7 +160,7 @@ pub fn new(job_scheduler_enabled: bool, discord_enabled: bool) -> Channels {
 
     Channels {
         core: ChannelsCore {
-            post_start: core_tx.clone(),
+            post_setup: core_tx.clone(),
             shutdown: core_tx.clone(),
             job_scheduler_tx,
             discord_tx,
