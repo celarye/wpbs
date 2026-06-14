@@ -16,7 +16,7 @@ use fjall::{Database, PersistMode};
 use tokio::{
     signal,
     sync::{
-        RwLock, RwLockWriteGuard,
+        Mutex, RwLock,
         mpsc::{UnboundedReceiver, UnboundedSender},
     },
     task::JoinHandle,
@@ -73,6 +73,8 @@ static TASKS: LazyLock<RwLock<Tasks>> = LazyLock::new(|| {
     })
 });
 
+static SETUP: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
 static SHUTDOWN: LazyLock<RwLock<Option<Shutdown>>> = LazyLock::new(|| RwLock::new(None));
 
 #[tokio::main]
@@ -93,7 +95,7 @@ async fn main() -> Result<ExitCode> {
         config.services.discord.enabled,
     );
 
-    let tasks = TASKS.write().await;
+    let setup_guard = SETUP.lock().await;
 
     let shutdown_signal_listener = shutdown_signal_listener(channels.core.shutdown);
 
@@ -111,7 +113,6 @@ async fn main() -> Result<ExitCode> {
     );
 
     let setup_result = setup(
-        tasks,
         cli.http_client_timeout_seconds,
         cli.plugin_directory,
         cli.cache,
@@ -124,7 +125,7 @@ async fn main() -> Result<ExitCode> {
 
     post_setup(channels.core.post_setup, setup_result).await;
 
-    info!("Setup completed successfully");
+    drop(setup_guard);
 
     message_handler.await.unwrap()?;
 
@@ -200,9 +201,7 @@ fn message_handler(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn setup(
-    mut tasks: RwLockWriteGuard<'_, Tasks>,
     http_client_timeout_seconds: u64,
     plugin_directory_path: PathBuf,
     cache: bool,
@@ -219,13 +218,7 @@ async fn setup(
     )
     .await?;
 
-    services::start(
-        &mut tasks,
-        config.services,
-        secrets.services,
-        service_channels,
-    )
-    .await?;
+    services::setup(config.services, secrets.services, service_channels).await?;
 
     let runtime = Runtime::new(runtime_channels.rx);
 
@@ -237,7 +230,7 @@ async fn setup(
         )
         .await?;
 
-    tasks.runtime = Some(runtime.run());
+    TASKS.write().await.runtime = Some(runtime.run());
 
     Ok(())
 }
@@ -254,6 +247,8 @@ async fn post_setup(core_post_setup_tx: UnboundedSender<CoreMessages>, setup_res
     }
 
     services::post_setup(&core_post_setup_tx).await;
+
+    info!("Setup completed successfully");
 }
 
 fn shutdown_signal_listener(core_tx: UnboundedSender<CoreMessages>) -> JoinHandle<()> {
@@ -287,6 +282,7 @@ async fn shutdown(
     runtime_tx: Option<UnboundedSender<RuntimeMessages>>,
     shutdown_signal_listener: Option<JoinHandle<()>>,
 ) {
+    let _setup_guard = SETUP.lock().await;
     let mut tasks = TASKS.write().await;
 
     drop(runtime_tx.unwrap());

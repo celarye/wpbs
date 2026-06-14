@@ -2,10 +2,10 @@
 /* Copyright © 2026 Eduard Smet */
 
 use anyhow::Result;
-use tokio::sync::{RwLockWriteGuard, mpsc::UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
-    TASKS, Tasks,
+    TASKS,
     config::services::ConfigServices,
     services::{discord::Discord, job_scheduler::JobScheduler},
     utils::{
@@ -17,8 +17,7 @@ use crate::{
 pub mod discord;
 pub mod job_scheduler;
 
-pub async fn start(
-    tasks: &mut RwLockWriteGuard<'_, Tasks>,
+pub async fn setup(
     config: ConfigServices,
     secrets: SecretsServices,
     channels: ChannelsServices,
@@ -31,7 +30,7 @@ pub async fn start(
         let job_scheduler =
             JobScheduler::new(job_scheduler_channels.core_tx, job_scheduler_channels.rx);
 
-        tasks.services.job_scheduler = Some(job_scheduler.run());
+        TASKS.write().await.services.job_scheduler = Some(job_scheduler.run());
     }
 
     if let Some(discord_channels) = channels.discord {
@@ -43,7 +42,7 @@ pub async fn start(
         )
         .await?;
 
-        tasks.services.discord = Some(discord.run());
+        TASKS.write().await.services.discord = Some(discord.run());
     }
 
     Ok(())
