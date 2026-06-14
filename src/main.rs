@@ -129,6 +129,7 @@ async fn main() -> Result<ExitCode> {
     }
 
     drop(channels.core.post_start);
+    info!("Setup completed successfully");
 
     message_handler.await.unwrap()?;
 

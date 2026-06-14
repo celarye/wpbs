@@ -44,6 +44,8 @@ impl JobScheduler {
 
     #[hotpath::measure]
     pub fn run(mut self) -> JoinHandle<()> {
+        info!("Starting the job scheduler service");
+
         tokio::spawn(async move {
             let task_tracker = TaskTracker::new();
 
@@ -122,6 +124,7 @@ impl JobScheduler {
     }
 
     async fn shutdown(&self) {
+        info!("Shutting the job scheduler service down");
         for job in self.jobs.write().await.drain() {
             job.1.abort();
 

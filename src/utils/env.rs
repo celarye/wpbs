@@ -21,7 +21,7 @@ pub struct SecretsDiscord {
 }
 
 pub fn load_env_file(env_file_path: &Path) -> Result<()> {
-    info!("Loading the env file");
+    info!("Loading and parsing the environment variables file");
 
     if let Err(err) = dotenvy::from_path(env_file_path) {
         if err.not_found() {

@@ -88,6 +88,8 @@ impl Discord {
 
     #[hotpath::measure]
     pub fn run(mut self) -> JoinHandle<()> {
+        info!("Starting the Discord service");
+
         let mut shard_tasks = Vec::with_capacity(self.shards.len());
         let http_task_tracker = TaskTracker::new();
 
@@ -175,6 +177,8 @@ impl Discord {
     }
 
     async fn shutdown(&self, tasks: Vec<JoinHandle<()>>) {
+        info!("Shutting the Discord service down");
+
         for shard_message_sender in self.shard_message_senders.iter() {
             _ = shard_message_sender.close(CloseFrame::NORMAL);
         }

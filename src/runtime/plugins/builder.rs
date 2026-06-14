@@ -5,6 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 use anyhow::Result;
 use tokio::task::JoinHandle;
+use tracing::debug;
 use wasmtime::{
     Config, Engine, EngineWeak, Store,
     component::{HasSelf, Linker},
@@ -30,6 +31,8 @@ pub struct PluginBuilder {
 
 impl PluginBuilder {
     pub fn new() -> Self {
+        debug!("Creating the WASI plugin builder");
+
         let mut config = Config::new();
         config.epoch_interruption(true);
         config.wasm_component_model_map(true);

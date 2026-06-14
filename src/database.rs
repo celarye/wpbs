@@ -11,7 +11,7 @@ use crate::utils::channels::DatabaseMessages;
 use anyhow::{Result, bail};
 use fjall::{Database, Guard, Iter, KeyspaceCreateOptions, PersistMode, Slice};
 use tokio::task::spawn_blocking;
-use tracing::debug;
+use tracing::{debug, info};
 
 pub enum Keyspaces {
     PluginStore, // K: String (Uuid:String); V: Vec<u8>
@@ -25,7 +25,7 @@ pub enum Keyspaces {
 }
 
 pub fn new(database_directory_path: &Path) -> Result<Database> {
-    debug!("Creating the database");
+    info!("Opening or creating the database");
 
     if let Err(err) = fs::create_dir_all(database_directory_path)
         && err.kind() != ErrorKind::AlreadyExists

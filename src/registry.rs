@@ -61,7 +61,7 @@ pub async fn get_plugins(
     base_plugin_directory_path: PathBuf,
     cache: bool,
 ) -> Result<Vec<(Uuid, AvailablePlugin)>> {
-    info!("Fetching and storing the plugins");
+    info!("Getting all plugins from their respective registries");
 
     let mut available_plugins = Vec::new();
 
@@ -96,6 +96,7 @@ async fn get_cached_plugins(
 ) -> HashMap<String, Vec<(String, ConfigPlugin)>> {
     let mut registries = HashMap::new();
 
+    // TODO: Never try to fetch the `local` registry
     for (plugin_uid, plugin_options) in config {
         let (plugin_string, plugin_requested_version) =
             parse_plugin_string_requested_version(&plugin_options.plugin);

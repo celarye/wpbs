@@ -45,11 +45,9 @@ pub struct Runtime {
 
 impl Runtime {
     pub fn new(rx: UnboundedReceiver<RuntimeMessages>) -> Self {
-        info!("Creating the WASI plugin builder");
+        info!("Creating the WASI runtime");
 
         let plugin_builder = Arc::new(PluginBuilder::new());
-
-        info!("Creating the WASI runtime");
 
         Runtime {
             plugins: Arc::new(RwLock::new(HashMap::new())),
@@ -60,6 +58,8 @@ impl Runtime {
 
     #[hotpath::measure]
     pub fn run(mut self) -> JoinHandle<()> {
+        info!("Starting the WASI runtime");
+
         tokio::spawn(async move {
             let task_tracker = TaskTracker::new();
 
@@ -178,6 +178,7 @@ impl Runtime {
 
         let mut tasks = Vec::new();
 
+        // TODO: Bail on no successful plugin initializations
         for (plugin_uuid, plugin_metadata) in available_plugins {
             let plugins = self.plugins.clone();
             let plugin_builder = self.plugin_builder.clone();
