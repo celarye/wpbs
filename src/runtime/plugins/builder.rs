@@ -67,7 +67,7 @@ impl PluginBuilder {
             .envs(&state_pre.environment)
             .preopened_dir(
                 &*state_pre.workspace_directory_path,
-                "/",
+                ".",
                 DirPerms::all(),
                 FilePerms::all(),
             )
