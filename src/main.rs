@@ -5,7 +5,7 @@ use std::{
     collections::VecDeque,
     env,
     ffi::OsString,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{self, Command, ExitCode},
     sync::LazyLock,
 };
@@ -22,7 +22,6 @@ use tokio::{
     task::JoinHandle,
 };
 use tracing::{debug, error, info, warn};
-use tracing_appender::non_blocking::WorkerGuard;
 
 mod cli;
 mod config;
@@ -33,7 +32,7 @@ mod runtime;
 mod services;
 mod utils;
 
-use cli::{Cli, CliLogParameters};
+use cli::Cli;
 use config::Config;
 
 use crate::{
@@ -81,7 +80,9 @@ static SHUTDOWN: LazyLock<RwLock<Option<Shutdown>>> = LazyLock::new(|| RwLock::n
 async fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
 
-    let _guard = initialization(cli.log_parameters, &cli.env_file)?;
+    let _guard = utils::logger::new(cli.log_parameters)?;
+
+    utils::env::load_env_file(&cli.env_file)?;
 
     let config = Config::new(&cli.config_file)?;
 
@@ -134,17 +135,6 @@ async fn main() -> Result<ExitCode> {
     message_handler.await.unwrap()?;
 
     exit().await
-}
-
-fn initialization(
-    cli_log_parameters: CliLogParameters,
-    env_file_path: &Path,
-) -> Result<Option<WorkerGuard>> {
-    let guard = utils::logger::new(cli_log_parameters)?;
-
-    utils::env::load_env_file(env_file_path)?;
-
-    Ok(guard)
 }
 
 fn message_handler(
