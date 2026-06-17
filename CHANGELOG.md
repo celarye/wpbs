@@ -5,26 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.0-rc.4] - 2026-06-17
+
+### Added
+
+#### Runtime
+
+- Add debug logs for plugin calls. (#16)
+
+### Fixed
+
+#### Services
+
+- Twilight fork contains a fix for `Intents` into `EventTypeFlags` conversion. (#16)
+
+### Changed
+
+#### Miscellaneous
+
+- Update dependencies. (#16)
+
 ## [0.1.0-rc.3] - 2026-06-15
 
 ### Added
 
 #### Services
 
-- Handle SIGTERM in addition to Ctrl+C (#12)
+- Handle SIGTERM in addition to Ctrl+C. (#12)
 
 ### Fixed
 
 #### Runtime
 
-- Plugin initialization deadlock (#13)
-- Runtime panic because of moved service message senders (#15)
+- Plugin initialization deadlock. (#13)
+- Runtime panic because of moved service message senders. (#15)
 
 ### Changed
 
 #### Miscellaneous
 
-- Bump hotpath dependency to 0.17.0 (#14)
+- Bump hotpath dependency to 0.17.0. (#14)
 
 ## [0.1.0-rc.2] - 2026-06-14
 
@@ -80,6 +100,7 @@ plugin state storage.
 - Discord service supporting Gateway events, HTTP requests, and interaction registration.
 - Job scheduler service for executing cron-based tasks.
 
+[0.1.0-rc.4]: https://github.com/wpbs-rs/wpbs/compare/0.1.0-rc.3...0.1.0-rc.4
 [0.1.0-rc.3]: https://github.com/wpbs-rs/wpbs/compare/0.1.0-rc.2...0.1.0-rc.3
 [0.1.0-rc.2]: https://github.com/wpbs-rs/wpbs/compare/0.1.0-rc.1...0.1.0-rc.2
 [0.1.0-rc.1]: https://github.com/wpbs-rs/wpbs/releases/tag/0.1.0-rc.1
