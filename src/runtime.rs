@@ -209,8 +209,7 @@ impl Runtime {
                 let plugin_workspace_path = plugins_directory_path
                     .join("workspaces")
                     .join(&*config_name)
-                    .join(&plugin_metadata.user_id)
-                    .join("workspace");
+                    .join(&plugin_metadata.user_id);
 
                 let bytes = match fs::read(plugin_binary_path).await {
                     Ok(bytes) => bytes,
