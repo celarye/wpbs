@@ -39,7 +39,7 @@ impl Equivalent<CommandKey> for (&str, Option<Id<GuildMarker>>) {
 impl Discord {
     // TODO: Split up in sub functions
     #[allow(clippy::too_many_lines)]
-    pub async fn application_command_registrations(
+    pub async fn register_application_commands(
         database: Database,
         http_client: Arc<Client>,
         cache: Arc<InMemoryCache>,

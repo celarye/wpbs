@@ -21,8 +21,8 @@ pub mod job_scheduler;
 pub async fn setup(
     config: ConfigServices,
     secrets: SecretsServices,
-    database: Database,
     channels: ChannelsServices,
+    database: Database,
 ) -> Result<()> {
     // TODO:
     // - Make service starts concurrent
@@ -39,9 +39,9 @@ pub async fn setup(
         let discord = Discord::new(
             config.discord.settings,
             secrets.discord.unwrap(),
-            database,
             discord_channels.core_tx,
             discord_channels.rx,
+            database,
         )
         .await?;
 

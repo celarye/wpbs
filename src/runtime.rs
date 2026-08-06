@@ -6,7 +6,7 @@ pub mod plugins;
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use fjall::Database;
 use tokio::{
     fs,
@@ -58,165 +58,57 @@ impl Runtime {
         }
     }
 
-    #[hotpath::measure]
-    pub fn run(mut self) -> JoinHandle<()> {
-        info!("Starting the WASI runtime");
-
-        tokio::spawn(async move {
-            let task_tracker = TaskTracker::new();
-
-            while let Some(message) = self.rx.recv().await {
-                match message {
-                    RuntimeMessages::Core(core_message) => match core_message {
-                        RuntimeMessagesCore::CallDependencyFunction(
-                            plugin_id,
-                            function_id,
-                            params,
-                            response_sender,
-                        ) => {
-                            let plugins = self.plugins.clone();
-                            let plugin_builder = self.plugin_builder.clone();
-
-                            task_tracker.spawn(async move {
-                                if let Some(plugin) =
-                                    plugins.read().await.get(&plugin_id).map(|p| (*p).clone())
-                                {
-                                    Self::call_dependency_function(
-                                        plugin_builder,
-                                        plugin,
-                                        function_id,
-                                        params,
-                                        response_sender,
-                                    )
-                                    .await;
-                                }
-                            });
-                        }
-                        RuntimeMessagesCore::RemovePlugin(plugin_id) => {
-                            let plugins = self.plugins.clone();
-                            let plugin_builder = self.plugin_builder.clone();
-
-                            task_tracker.spawn(async move {
-                                if let Some(plugin) = plugins.write().await.remove(&plugin_id) {
-                                    // TODO: Delay calling shutdown until all plugin calls have finished.
-                                    Self::call_shutdown(plugin_builder, plugin).await;
-                                }
-                            });
-                        }
-                    },
-                    RuntimeMessages::JobScheduler(job_scheduler_message) => {
-                        match job_scheduler_message {
-                            RuntimeMessagesJobScheduler::CallScheduledJob(plugin_id, job_id) => {
-                                let plugins = self.plugins.clone();
-                                let plugin_builder = self.plugin_builder.clone();
-
-                                task_tracker.spawn(async move {
-                                    if let Some(plugin) =
-                                        plugins.read().await.get(&plugin_id).map(|p| (*p).clone())
-                                    {
-                                        Self::call_scheduled_job(plugin_builder, plugin, job_id)
-                                            .await;
-                                    }
-                                });
-                            }
-                        }
-                    }
-                    RuntimeMessages::Discord(discord_message) => match discord_message {
-                        RuntimeMessagesDiscord::CallDiscordApplicationCommands(
-                            plugin_id,
-                            results,
-                        ) => {
-                            let plugins = self.plugins.clone();
-                            let plugin_builder = self.plugin_builder.clone();
-
-                            task_tracker.spawn(async move {
-                                if let Some(plugin) =
-                                    plugins.read().await.get(&plugin_id).map(|p| (*p).clone())
-                                {
-                                    Self::call_discord_application_commands(
-                                        plugin_builder,
-                                        plugin,
-                                        results,
-                                    )
-                                    .await;
-                                }
-                            });
-                        }
-                        RuntimeMessagesDiscord::CallDiscordEvent(plugin_id, event) => {
-                            let plugins = self.plugins.clone();
-                            let plugin_builder = self.plugin_builder.clone();
-
-                            task_tracker.spawn(async move {
-                                if let Some(plugin) =
-                                    plugins.read().await.get(&plugin_id).map(|p| (*p).clone())
-                                {
-                                    Self::call_discord_event(plugin_builder, plugin, event).await;
-                                }
-                            });
-                        }
-                    },
-                }
-            }
-
-            task_tracker.close();
-            task_tracker.wait().await;
-
-            self.shutdown().await;
-        })
-    }
-
     // TODO: Split up in sub functions
     #[allow(clippy::too_many_lines)]
     #[hotpath::measure]
     pub async fn initialize_plugins(
         &self,
-        plugins_directory_path: PathBuf,
+        plugin_directory_path: PathBuf,
         config_name: Arc<String>,
-        available_plugins: Vec<(Uuid, AvailablePlugin)>,
-        database: Database,
         core_tx: UnboundedSender<CoreMessages>,
+        database: Database,
+        available_plugins: Vec<AvailablePlugin>,
     ) -> Result<()> {
         info!("Initializing the plugins");
 
-        let plugins_directory_path = Arc::new(plugins_directory_path);
+        let plugin_directory_path = Arc::new(plugin_directory_path);
 
-        let mut tasks = Vec::new();
+        let task_tracker = TaskTracker::new();
 
-        // TODO: Bail on no successful plugin initializations
-        for (plugin_uuid, plugin_metadata) in available_plugins {
-            let plugins_directory_path = plugins_directory_path.clone();
+        for available_plugin in available_plugins {
+            let plugin_directory_path = plugin_directory_path.clone();
             let config_name = config_name.clone();
-            let plugins = self.plugins.clone();
-            let plugin_builder = self.plugin_builder.clone();
             let database = database.clone();
             let core_tx = core_tx.clone();
+            let plugins = self.plugins.clone();
+            let plugin_builder = self.plugin_builder.clone();
 
-            tasks.push(tokio::spawn(async move {
-                let plugin_binary_path = if let Some(content_digest) = &plugin_metadata.content_digest {
+            task_tracker.spawn(async move {
+                let plugin_binary_path = if let Some(content_digest) = &available_plugin.content_digest {
                     match content_digest {
-                        ContentDigest::Sha256 { hex } => plugins_directory_path.join("binaries").join("remote").join(format!("sha256:{hex}"))
+                        ContentDigest::Sha256 { hex } => plugin_directory_path.join("binaries").join("remote").join(format!("sha256:{hex}"))
                     }
 
                 } else {
-                    plugins_directory_path
+                    plugin_directory_path
                         .join("binaries")
-                        .join(&plugin_metadata.namespace_id)
-                        .join(&plugin_metadata.plugin_id)
-                        .join(plugin_metadata.version.to_string()).join("plugin.wasm")
+                        .join(&available_plugin.namespace_id)
+                        .join(&available_plugin.plugin_id)
+                        .join(available_plugin.version.to_string()).join("plugin.wasm")
                 };
 
-                // TODO: Make this configurable
-                let plugin_workspace_path = plugins_directory_path
+                // TODO: Make workspaces configurable
+                let plugin_workspace_path = plugin_directory_path
                     .join("workspaces")
                     .join(&*config_name)
-                    .join(&plugin_metadata.user_id);
+                    .join(&available_plugin.user_id);
 
                 let bytes = match fs::read(plugin_binary_path).await {
                     Ok(bytes) => bytes,
                     Err(err) => {
                         error!(
                             "An error occurred while reading the {} plugin file: {err}",
-                            plugin_metadata.user_id
+                            available_plugin.user_id
                         );
                         return;
                     }
@@ -227,7 +119,7 @@ impl Runtime {
                     Err(err) => {
                         error!(
                             "An error occurred while creating a WASI component from the {} plugin: {err}",
-                            plugin_metadata.user_id
+                            available_plugin.user_id
                         );
                         return;
                     }
@@ -236,7 +128,7 @@ impl Runtime {
                 if let Err(err) = fs::create_dir_all(&plugin_workspace_path).await {
                     error!(
                         "Something went wrong while creating the workspace directory for the {} plugin, error: {err}",
-                        plugin_metadata.user_id
+                        available_plugin.user_id
                     );
                     return;
                 }
@@ -246,7 +138,7 @@ impl Runtime {
                     Err(err) => {
                         error!(
                             "The {} plugin returned an error while pre-instantiating (phase 1): {err}",
-                            plugin_metadata.user_id
+                            available_plugin.user_id
                         );
                         return;
                     }
@@ -257,7 +149,7 @@ impl Runtime {
                     Err(err) => {
                         error!(
                             "The {} plugin returned an error while pre-instantiating (phase 2): {err}",
-                            plugin_metadata.user_id
+                            available_plugin.user_id
 
                         );
                         return;
@@ -265,19 +157,19 @@ impl Runtime {
                 };
 
                 let state_pre = RuntimePluginStatePre {
-                    metadata: Arc::new(RuntimePluginMetadata {
-                        plugin_uuid,
-                        namespace_id: plugin_metadata.namespace_id,
-                        plugin_id: plugin_metadata.plugin_id,
-                        version: plugin_metadata.version,
-                        user_id: plugin_metadata.user_id,
-                        permissions: plugin_metadata.permissions,
-                    }),
-                    environment: plugin_metadata
+                    environment: available_plugin
                         .environment
                         .into_iter()
                         .collect::<Box<[(String, String)]>>(),
                     workspace_directory_path: plugin_workspace_path,
+                    metadata: Arc::new(RuntimePluginMetadata {
+                        plugin_uuid: available_plugin.plugin_uuid,
+                        namespace_id: available_plugin.namespace_id,
+                        plugin_id: available_plugin.plugin_id,
+                        version: available_plugin.version,
+                        user_id: available_plugin.user_id,
+                        permissions: available_plugin.permissions,
+                    }),
                     database,
                     core_tx,
                 };
@@ -298,7 +190,7 @@ impl Runtime {
 
                     match instance
                         .wpbs_plugin_core_export_functions()
-                        .call_initialization(&mut store, &sonic_rs::to_string(&plugin_metadata.settings).unwrap())
+                        .call_initialization(&mut store, &sonic_rs::to_string(&available_plugin.settings).unwrap())
                         .await
                     {
                         Ok(init_result) => {
@@ -325,15 +217,128 @@ impl Runtime {
                     state_pre,
                 });
 
-                plugins.write().await.insert(plugin_uuid, plugin_context);
-            }));
+                plugins.write().await.insert(available_plugin.plugin_uuid, plugin_context);
+            });
         }
 
-        for task in tasks {
-            task.await.unwrap();
+        task_tracker.close();
+        task_tracker.wait().await;
+
+        if self.plugins.read().await.is_empty() {
+            bail!("No plugin initialized successfully")
         }
 
         Ok(())
+    }
+
+    #[hotpath::measure]
+    pub fn run(mut self) -> JoinHandle<()> {
+        info!("Starting the WASI runtime");
+
+        tokio::spawn(async move {
+            let task_tracker = TaskTracker::new();
+
+            while let Some(message) = self.rx.recv().await {
+                match message {
+                    RuntimeMessages::Core(core_message) => match core_message {
+                        RuntimeMessagesCore::CallDependencyFunction(
+                            plugin_uuid,
+                            signature,
+                            params,
+                            response_sender,
+                        ) => {
+                            let plugins = self.plugins.clone();
+                            let plugin_builder = self.plugin_builder.clone();
+
+                            task_tracker.spawn(async move {
+                                if let Some(plugin) =
+                                    plugins.read().await.get(&plugin_uuid).map(|p| (*p).clone())
+                                {
+                                    Self::call_dependency_function(
+                                        plugin_builder,
+                                        plugin,
+                                        signature,
+                                        params,
+                                        response_sender,
+                                    )
+                                    .await;
+                                }
+                            });
+                        }
+                        RuntimeMessagesCore::RemovePlugin(plugin_uuid) => {
+                            let plugins = self.plugins.clone();
+                            let plugin_builder = self.plugin_builder.clone();
+
+                            task_tracker.spawn(async move {
+                                if let Some(plugin) = plugins.write().await.remove(&plugin_uuid) {
+                                    // TODO: Delay calling shutdown until all plugin calls have finished.
+                                    Self::call_shutdown(plugin_builder, plugin).await;
+                                }
+                            });
+                        }
+                    },
+                    RuntimeMessages::JobScheduler(job_scheduler_message) => {
+                        match job_scheduler_message {
+                            RuntimeMessagesJobScheduler::CallScheduledJob(
+                                plugin_uuid,
+                                job_uuid,
+                            ) => {
+                                let plugins = self.plugins.clone();
+                                let plugin_builder = self.plugin_builder.clone();
+
+                                task_tracker.spawn(async move {
+                                    if let Some(plugin) =
+                                        plugins.read().await.get(&plugin_uuid).map(|p| (*p).clone())
+                                    {
+                                        Self::call_scheduled_job(plugin_builder, plugin, job_uuid)
+                                            .await;
+                                    }
+                                });
+                            }
+                        }
+                    }
+                    RuntimeMessages::Discord(discord_message) => match discord_message {
+                        RuntimeMessagesDiscord::CallDiscordApplicationCommands(
+                            plugin_uuid,
+                            results,
+                        ) => {
+                            let plugins = self.plugins.clone();
+                            let plugin_builder = self.plugin_builder.clone();
+
+                            task_tracker.spawn(async move {
+                                if let Some(plugin) =
+                                    plugins.read().await.get(&plugin_uuid).map(|p| (*p).clone())
+                                {
+                                    Self::call_discord_application_commands(
+                                        plugin_builder,
+                                        plugin,
+                                        results,
+                                    )
+                                    .await;
+                                }
+                            });
+                        }
+                        RuntimeMessagesDiscord::CallDiscordEvent(plugin_uuid, event) => {
+                            let plugins = self.plugins.clone();
+                            let plugin_builder = self.plugin_builder.clone();
+
+                            task_tracker.spawn(async move {
+                                if let Some(plugin) =
+                                    plugins.read().await.get(&plugin_uuid).map(|p| (*p).clone())
+                                {
+                                    Self::call_discord_event(plugin_builder, plugin, event).await;
+                                }
+                            });
+                        }
+                    },
+                }
+            }
+
+            task_tracker.close();
+            task_tracker.wait().await;
+
+            self.shutdown().await;
+        })
     }
 
     async fn call_dependency_function(
@@ -387,10 +392,10 @@ impl Runtime {
     async fn call_scheduled_job(
         plugin_builder: Arc<PluginBuilder>,
         plugin: Arc<RuntimePlugin>,
-        job_id: Uuid,
+        job_uuid: Uuid,
     ) {
         debug!(
-            "Calling the {job_id} scheduled job of the {} plugin",
+            "Calling the {job_uuid} scheduled job of the {} plugin",
             plugin.state_pre.metadata.user_id
         );
 
@@ -404,7 +409,7 @@ impl Runtime {
 
         match instance
             .wpbs_plugin_job_scheduler_export_functions()
-            .call_scheduled_job(store, &job_id.to_string())
+            .call_scheduled_job(store, &job_uuid.to_string())
             .await
         {
             Ok(result) => {

@@ -49,9 +49,9 @@ impl Discord {
     pub async fn new(
         config: ConfigDiscordSettings,
         secrets: SecretsDiscord,
-        database: Database,
         core_tx: UnboundedSender<CoreMessages>,
         rx: UnboundedReceiver<DiscordMessages>,
+        database: Database,
     ) -> Result<Self> {
         info!("Creating the Discord service");
 
@@ -109,24 +109,24 @@ impl Discord {
     pub fn run(mut self) -> JoinHandle<()> {
         info!("Starting the Discord service");
 
-        let mut shard_tasks = Vec::with_capacity(self.shards.len());
+        let shard_task_tracker = TaskTracker::new();
         let http_task_tracker = TaskTracker::new();
 
         for shard in self.shards.drain(..) {
-            shard_tasks.push(tokio::spawn(Self::shard_runner(
+            shard_task_tracker.spawn(Self::shard_runner(
                 self.database.clone(),
                 self.cache.clone(),
                 self.core_tx.clone(),
                 shard.0,
                 shard.1,
-            )));
+            ));
         }
 
         tokio::spawn(async move {
             while let Some(message) = self.rx.recv().await {
                 match message {
                     DiscordMessages::RegisterApplicationCommands => {
-                        http_task_tracker.spawn(Self::application_command_registrations(
+                        http_task_tracker.spawn(Self::register_application_commands(
                             self.database.clone(),
                             self.http_client.clone(),
                             self.cache.clone(),
@@ -152,7 +152,7 @@ impl Discord {
             http_task_tracker.close();
             http_task_tracker.wait().await;
 
-            self.shutdown(shard_tasks).await;
+            self.shutdown(shard_task_tracker).await;
         })
     }
 
@@ -183,19 +183,18 @@ impl Discord {
 
             let database = database.clone();
             let core_tx = core_tx.clone();
-            task::spawn_blocking(move || Self::handle_event(&database, &core_tx.clone(), &event));
+            task::spawn_blocking(move || Self::handle_event(&database, &core_tx, &event));
         }
     }
 
-    async fn shutdown(&self, tasks: Vec<JoinHandle<()>>) {
+    async fn shutdown(&self, shard_task_tracker: TaskTracker) {
         info!("Shutting the Discord service down");
 
         for shard_message_sender in self.shard_message_senders.iter() {
-            _ = shard_message_sender.close(CloseFrame::NORMAL);
+            let _ = shard_message_sender.close(CloseFrame::NORMAL);
         }
 
-        for task in tasks {
-            task.await.unwrap();
-        }
+        shard_task_tracker.close();
+        shard_task_tracker.wait().await;
     }
 }

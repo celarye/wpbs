@@ -38,12 +38,12 @@ impl Discord {
                             KeyspaceCreateOptions::default,
                         )?;
 
-                        if let Some(plugin_id_bytes) =
+                        if let Some(plugin_uuid_bytes) =
                             application_command_keyspace.get(command_data.id.get().to_ne_bytes())?
                         {
                             let _ = core_tx.send(CoreMessages::Runtime(RuntimeMessages::Discord(
                                 RuntimeMessagesDiscord::CallDiscordEvent(
-                                    Uuid::from_slice(&plugin_id_bytes).unwrap(),
+                                    Uuid::from_slice(&plugin_uuid_bytes).unwrap(),
                                     DiscordEvents::InteractionCreate(
                                         sonic_rs::to_string(&interaction_create).unwrap(),
                                     ),
@@ -63,12 +63,12 @@ impl Discord {
                             KeyspaceCreateOptions::default,
                         )?;
 
-                        if let Some(plugin_id_bytes) =
+                        if let Some(plugin_uuid_bytes) =
                             message_components_keyspace.get(message_component_id.as_bytes())?
                         {
                             let _ = core_tx.send(CoreMessages::Runtime(RuntimeMessages::Discord(
                                 RuntimeMessagesDiscord::CallDiscordEvent(
-                                    Uuid::from_slice(&plugin_id_bytes).unwrap(),
+                                    Uuid::from_slice(&plugin_uuid_bytes).unwrap(),
                                     DiscordEvents::InteractionCreate(
                                         sonic_rs::to_string(&interaction_create).unwrap(),
                                     ),
@@ -84,10 +84,10 @@ impl Discord {
                         let modals_keyspace =
                             database.keyspace("discord_modals", KeyspaceCreateOptions::default)?;
 
-                        if let Some(plugin_id_bytes) = modals_keyspace.get(modal_id.as_bytes())? {
+                        if let Some(plugin_uuid_bytes) = modals_keyspace.get(modal_id.as_bytes())? {
                             let _ = core_tx.send(CoreMessages::Runtime(RuntimeMessages::Discord(
                                 RuntimeMessagesDiscord::CallDiscordEvent(
-                                    Uuid::from_slice(&plugin_id_bytes).unwrap(),
+                                    Uuid::from_slice(&plugin_uuid_bytes).unwrap(),
                                     DiscordEvents::InteractionCreate(
                                         sonic_rs::to_string(&interaction_create).unwrap(),
                                     ),
@@ -179,10 +179,10 @@ impl Discord {
         let entries = events_keyspace.prefix(key.as_str());
 
         for entry in entries {
-            let plugin_id = Uuid::from_slice(&entry.value().unwrap()).unwrap();
+            let plugin_uuid = Uuid::from_slice(&entry.value().unwrap()).unwrap();
 
             let _ = core_tx.send(CoreMessages::Runtime(RuntimeMessages::Discord(
-                RuntimeMessagesDiscord::CallDiscordEvent(plugin_id, event.clone()),
+                RuntimeMessagesDiscord::CallDiscordEvent(plugin_uuid, event.clone()),
             )));
         }
 

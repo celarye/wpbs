@@ -24,13 +24,10 @@ impl From<String> for CliLogParametersFileRotation {
 #[derive(Parser)]
 #[command(about, long_about = None, version, author)]
 pub struct Cli {
-    #[command(flatten)]
-    pub log_parameters: CliLogParameters,
-
     #[arg(default_value = "./config.yaml", short, long, value_name = "FILE PATH", help = "The path to the program its configuration file", long_help = None)]
     pub config_file: PathBuf,
 
-    #[arg(default_value = "./.env", short, long, value_name = "FILE PATH", help = "The path to an env file, used by the program its configuration file for env var interpolation", long_help = None)]
+    #[arg(default_value = "./.env", short, long, value_name = "FILE PATH", help = "The path to the program its env file", long_help = None)]
     pub env_file: PathBuf,
 
     #[arg(default_value = "./plugins", short, long, value_name = "DIRECTORY PATH", help = "The path to the program its plugin directory", long_help = None)]
@@ -41,6 +38,9 @@ pub struct Cli {
 
     #[arg(default_value_t = false, short, long, help = "Run in restricted mode, in this case plugin permissions are opt in", long_help = None)]
     pub restricted: bool,
+
+    #[command(flatten)]
+    pub log_parameters: CliLogParameters,
 }
 
 #[derive(Args)]

@@ -51,21 +51,21 @@ impl JobScheduler {
 
             while let Some(message) = self.rx.recv().await {
                 match message {
-                    JobSchedulerMessages::AddJob(plugin_id, cron, sender) => {
+                    JobSchedulerMessages::AddJob(plugin_uuid, cron, sender) => {
                         let jobs = self.jobs.clone();
                         let core_tx = self.core_tx.clone();
 
                         task_tracker.spawn(async move {
                             sender
-                                .send(Self::add_job(jobs, core_tx, plugin_id, cron).await)
+                                .send(Self::add_job(jobs, core_tx, plugin_uuid, cron).await)
                                 .unwrap();
                         });
                     }
-                    JobSchedulerMessages::RemoveJob(uuid, sender) => {
+                    JobSchedulerMessages::RemoveJob(job_uuid, sender) => {
                         let jobs = self.jobs.clone();
 
                         task_tracker.spawn(async move {
-                            sender.send(Self::remove_job(jobs, uuid).await).unwrap();
+                            sender.send(Self::remove_job(jobs, job_uuid).await).unwrap();
                         });
                     }
                 }
@@ -81,14 +81,14 @@ impl JobScheduler {
     async fn add_job(
         jobs: Arc<RwLock<HashMap<Uuid, JoinHandle<()>>>>,
         core_tx: UnboundedSender<CoreMessages>,
-        plugin_id: Uuid,
+        plugin_uuid: Uuid,
         cron: String,
     ) -> Result<Uuid> {
         info!(
-            "Scheduled Job at {cron} cron from the {plugin_id} plugin requested to be registered"
+            "Scheduled Job at {cron} cron from the {plugin_uuid} plugin requested to be registered"
         );
 
-        let id = Uuid::new_v4();
+        let job_uuid = Uuid::new_v4();
 
         let schedule = Schedule::from_str(&cron)?;
 
@@ -99,20 +99,23 @@ impl JobScheduler {
                 }
 
                 let _ = core_tx.send(CoreMessages::Runtime(RuntimeMessages::JobScheduler(
-                    RuntimeMessagesJobScheduler::CallScheduledJob(plugin_id, id),
+                    RuntimeMessagesJobScheduler::CallScheduledJob(plugin_uuid, job_uuid),
                 )));
             }
         });
 
-        jobs.write().await.insert(id, task);
+        jobs.write().await.insert(job_uuid, task);
 
-        Ok(id)
+        Ok(job_uuid)
     }
 
-    async fn remove_job(jobs: Arc<RwLock<HashMap<Uuid, JoinHandle<()>>>>, id: Uuid) -> Result<()> {
-        info!("Removing scheduled job {id}");
+    async fn remove_job(
+        jobs: Arc<RwLock<HashMap<Uuid, JoinHandle<()>>>>,
+        job_uuid: Uuid,
+    ) -> Result<()> {
+        info!("Removing scheduled job {job_uuid}");
 
-        if let Some(job) = jobs.write().await.remove(&id) {
+        if let Some(job) = jobs.write().await.remove(&job_uuid) {
             job.abort();
 
             let _ = job.await;
@@ -120,7 +123,7 @@ impl JobScheduler {
             return Ok(());
         }
 
-        bail!("No job with this id was found");
+        bail!("No job with this uuid was found");
     }
 
     async fn shutdown(&self) {

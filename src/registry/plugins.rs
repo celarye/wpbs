@@ -4,12 +4,14 @@
 use std::collections::HashMap;
 
 use semver::Version;
+use uuid::Uuid;
 use wasm_pkg_client::ContentDigest;
 use yaml_serde::Value;
 
 use crate::config::plugins::permissions::PluginPermissions;
 
 pub struct AvailablePlugin {
+    pub plugin_uuid: Uuid,
     pub namespace_id: String,
     pub plugin_id: String,
     pub version: Version,

@@ -6,6 +6,7 @@ use std::{collections::HashMap, fs, path::Path};
 use anyhow::Result;
 use serde::Deserialize;
 use tracing::info;
+use uuid::Uuid;
 
 use crate::config::{plugins::ConfigPlugin, services::ConfigServices};
 
@@ -14,6 +15,7 @@ pub mod services;
 
 #[derive(Deserialize)]
 pub struct Config {
+    #[serde(default = "Config::default_name")]
     pub name: String,
     #[serde(default)]
     pub services: ConfigServices,
@@ -21,6 +23,10 @@ pub struct Config {
 }
 
 impl Config {
+    fn default_name() -> String {
+        Uuid::new_v4().to_string()
+    }
+
     pub fn new(file_path: &Path, restricted: bool) -> Result<Self> {
         info!("Loading and parsing the config file");
 
