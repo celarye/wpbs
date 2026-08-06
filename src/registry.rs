@@ -27,10 +27,10 @@ static DEFAULT_NAMESPACE_ID: &str = "wpbs-rs";
 #[hotpath::measure]
 pub async fn get_plugins(
     plugin_directory_path: &Path,
-    database: Database,
     config_name: Arc<String>,
     config_plugins: HashMap<String, ConfigPlugin>,
-) -> Result<Vec<(Uuid, AvailablePlugin)>> {
+    database: Database,
+) -> Result<Vec<AvailablePlugin>> {
     info!("Getting all plugins from their respective registries");
 
     let caching_client =
@@ -38,7 +38,7 @@ pub async fn get_plugins(
 
     let mut available_plugins = Vec::new();
 
-    let mut plugin_tasks: Vec<JoinHandle<Result<(Uuid, AvailablePlugin)>>> = Vec::new();
+    let mut plugin_tasks: Vec<JoinHandle<Result<AvailablePlugin>>> = Vec::new();
 
     let plugins_keyspace = database.keyspace("plugins", KeyspaceCreateOptions::default)?;
 
@@ -57,41 +57,38 @@ pub async fn get_plugins(
             if namespace_id == "local" {
                 get_local_plugin(plugin_directory_path, &plugin_id, &plugin_version).await?;
 
-                let uuid = get_plugin_uuid(&plugins_keyspace, &config_name, &plugin_user_id)?;
+                let plugin_uuid =
+                    get_plugin_uuid(&plugins_keyspace, &config_name, &plugin_user_id)?;
 
-                return Ok((
-                    uuid,
-                    AvailablePlugin {
-                        namespace_id,
-                        plugin_id,
-                        version: plugin_version,
-                        content_digest: None,
-                        user_id: plugin_user_id,
-                        environment: plugin_config.environment,
-                        permissions: plugin_config.permissions,
-                        settings: plugin_config.settings,
-                    },
-                ));
+                return Ok(AvailablePlugin {
+                    plugin_uuid,
+                    namespace_id,
+                    plugin_id,
+                    version: plugin_version,
+                    content_digest: None,
+                    user_id: plugin_user_id,
+                    permissions: plugin_config.permissions,
+                    environment: plugin_config.environment,
+                    settings: plugin_config.settings,
+                });
             }
 
             let release =
                 fetch_plugin(caching_client, &namespace_id, &plugin_id, &plugin_version).await?;
 
-            let uuid = get_plugin_uuid(&plugins_keyspace, &config_name, &plugin_user_id)?;
+            let plugin_uuid = get_plugin_uuid(&plugins_keyspace, &config_name, &plugin_user_id)?;
 
-            Ok((
-                uuid,
-                AvailablePlugin {
-                    namespace_id,
-                    plugin_id,
-                    version: release.version,
-                    content_digest: Some(release.content_digest),
-                    user_id: plugin_user_id,
-                    permissions: plugin_config.permissions,
-                    environment: plugin_config.environment,
-                    settings: plugin_config.settings,
-                },
-            ))
+            Ok(AvailablePlugin {
+                plugin_uuid,
+                namespace_id,
+                plugin_id,
+                version: release.version,
+                content_digest: Some(release.content_digest),
+                user_id: plugin_user_id,
+                permissions: plugin_config.permissions,
+                environment: plugin_config.environment,
+                settings: plugin_config.settings,
+            })
         }));
     }
 
@@ -179,15 +176,15 @@ fn get_plugin_uuid(
 ) -> Result<Uuid> {
     let key = format!("{config_name}:{plugin_user_id}");
 
-    let uuid = if let Ok(puuid_bytes) = plugins_keyspace.get(&key)
-        && let Some(uuid_bytes) = puuid_bytes
+    let plugin_uuid = if let Ok(pplugin_uuid_bytes) = plugins_keyspace.get(&key)
+        && let Some(plugin_uuid_bytes) = pplugin_uuid_bytes
     {
-        Uuid::from_slice(&uuid_bytes).unwrap()
+        Uuid::from_slice(&plugin_uuid_bytes).unwrap()
     } else {
         Uuid::new_v4()
     };
 
-    plugins_keyspace.insert(&key, uuid.as_bytes())?;
+    plugins_keyspace.insert(&key, plugin_uuid.as_bytes())?;
 
-    Ok(uuid)
+    Ok(plugin_uuid)
 }

@@ -54,6 +54,7 @@ pub enum RuntimeMessagesDiscord {
 
 pub enum JobSchedulerMessages {
     AddJob(Uuid, String, OSSender<Result<Uuid>>),
+    #[allow(unused)]
     RemoveJob(Uuid, OSSender<Result<()>>),
 }
 

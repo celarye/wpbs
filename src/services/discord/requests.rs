@@ -23,6 +23,7 @@ use crate::{
 };
 
 impl Discord {
+    // TODO: Split up in sub functions
     #[allow(clippy::too_many_lines)]
     pub async fn request(
         http_client: Arc<Client>,

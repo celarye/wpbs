@@ -101,21 +101,21 @@ async fn main() -> Result<ExitCode> {
     let database = database::new(&cli.database_directory)?;
 
     let message_handler = message_handler(
-        database.clone(),
         Arc::new(RwLock::new(Some(channels.core.runtime_tx))),
         Arc::new(RwLock::new(channels.core.job_scheduler_tx)),
         Arc::new(RwLock::new(channels.core.discord_tx)),
-        Arc::new(shutdown_signal_listener),
         channels.core.rx,
+        database.clone(),
+        Arc::new(shutdown_signal_listener),
     );
 
     let setup_result = setup(
         cli.plugin_directory,
-        database,
-        channels.services,
-        channels.runtime,
         config,
         secrets,
+        channels.services,
+        channels.runtime,
+        database,
     )
     .await;
 
@@ -129,18 +129,23 @@ async fn main() -> Result<ExitCode> {
 }
 
 fn message_handler(
-    database: Database,
     runtime_tx: Arc<RwLock<Option<UnboundedSender<RuntimeMessages>>>>,
     job_scheduler_tx: Arc<RwLock<Option<UnboundedSender<JobSchedulerMessages>>>>,
     discord_tx: Arc<RwLock<Option<UnboundedSender<DiscordMessages>>>>,
-    shutdown_signal_listener: Arc<JoinHandle<()>>,
     mut rx: UnboundedReceiver<CoreMessages>,
+    database: Database,
+    shutdown_signal_listener: Arc<JoinHandle<()>>,
 ) -> JoinHandle<Result<()>> {
     debug!("Starting the message handler");
 
     tokio::spawn(async move {
         while let Some(core_message) = rx.recv().await {
             match core_message {
+                CoreMessages::Runtime(runtime_message) => {
+                    if let Some(runtime_tx) = runtime_tx.read().await.as_ref() {
+                        runtime_tx.send(runtime_message).unwrap();
+                    }
+                }
                 CoreMessages::JobScheduler(job_scheduler_message) => {
                     if let Some(job_scheduler_tx) = job_scheduler_tx.read().await.as_ref() {
                         job_scheduler_tx.send(job_scheduler_message).unwrap();
@@ -151,18 +156,13 @@ fn message_handler(
                         discord_tx.send(discord_message).unwrap();
                     }
                 }
-                CoreMessages::Runtime(runtime_message) => {
-                    if let Some(runtime_tx) = runtime_tx.read().await.as_ref() {
-                        runtime_tx.send(runtime_message).unwrap();
-                    }
-                }
                 CoreMessages::Shutdown(shutdown_kind) => {
                     tokio::spawn(shutdown(
-                        shutdown_kind,
                         runtime_tx.clone(),
                         job_scheduler_tx.clone(),
                         discord_tx.clone(),
                         shutdown_signal_listener.clone(),
+                        shutdown_kind,
                     ));
                 }
             }
@@ -174,27 +174,27 @@ fn message_handler(
 
 async fn setup(
     plugin_directory_path: PathBuf,
-    database: Database,
-    service_channels: ChannelsServices,
-    runtime_channels: ChannelsRuntime,
     config: Config,
     secrets: Secrets,
+    service_channels: ChannelsServices,
+    runtime_channels: ChannelsRuntime,
+    database: Database,
 ) -> Result<()> {
     let config_name = Arc::new(config.name);
 
     let available_plugins = registry::get_plugins(
         &plugin_directory_path,
-        database.clone(),
         config_name.clone(),
         config.plugins,
+        database.clone(),
     )
     .await?;
 
     services::setup(
         config.services,
         secrets.services,
-        database.clone(),
         service_channels,
+        database.clone(),
     )
     .await?;
 
@@ -204,9 +204,9 @@ async fn setup(
         .initialize_plugins(
             plugin_directory_path,
             config_name,
-            available_plugins,
-            database,
             runtime_channels.core_tx,
+            database,
+            available_plugins,
         )
         .await?;
 
@@ -293,11 +293,11 @@ fn shutdown_signal_listener(core_tx: UnboundedSender<CoreMessages>) -> JoinHandl
 }
 
 async fn shutdown(
-    shutdown_kind: Shutdown,
     runtime_tx: Arc<RwLock<Option<UnboundedSender<RuntimeMessages>>>>,
     job_scheduler_tx: Arc<RwLock<Option<UnboundedSender<JobSchedulerMessages>>>>,
     discord_tx: Arc<RwLock<Option<UnboundedSender<DiscordMessages>>>>,
     shutdown_signal_listener: Arc<JoinHandle<()>>,
+    shutdown_kind: Shutdown,
 ) {
     let mut shutdown_guard = SHUTDOWN.write().await;
 
