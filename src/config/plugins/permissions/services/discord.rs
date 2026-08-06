@@ -108,10 +108,11 @@ impl From<&DiscordRequests> for PluginPermissionsDiscordRequests {
 }
 
 impl PluginPermissionsDiscord {
-    pub fn calculate(&mut self) {
+    pub fn calculate(&mut self, restricted: bool) {
         if self
             .requests
             .contains(&PluginPermissionsDiscordRequests::All)
+            || (self.requests.is_empty() && !restricted)
         {
             self.requests = vec![
                 PluginPermissionsDiscordRequests::RequestGuildMembers,
@@ -141,7 +142,9 @@ impl PluginPermissionsDiscord {
             ];
         }
 
-        if self.events.contains(&PluginPermissionsDiscordEvents::All) {
+        if self.events.contains(&PluginPermissionsDiscordEvents::All)
+            || (self.events.is_empty() && !restricted)
+        {
             self.events = vec![
                 PluginPermissionsDiscordEvents::MessageCreate,
                 PluginPermissionsDiscordEvents::InteractionCreate,
@@ -157,6 +160,7 @@ impl PluginPermissionsDiscord {
         if self
             .interactions
             .contains(&PluginPermissionsDiscordInteractions::All)
+            || (self.interactions.is_empty() && !restricted)
         {
             self.interactions = vec![
                 PluginPermissionsDiscordInteractions::ApplicationCommands,

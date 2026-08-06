@@ -38,6 +38,9 @@ pub struct Cli {
 
     #[arg(default_value = "./database", short, long, value_name = "DIRECTORY PATH", help = "The path to the program its database", long_help = None)]
     pub database_directory: PathBuf,
+
+    #[arg(default_value_t = false, short, long, help = "Run in restricted mode, in this case plugin permissions are opt in", long_help = None)]
+    pub restricted: bool,
 }
 
 #[derive(Args)]

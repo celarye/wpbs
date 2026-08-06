@@ -85,7 +85,7 @@ async fn main() -> Result<ExitCode> {
 
     utils::env::load_env_file(&cli.env_file)?;
 
-    let config = Config::new(&cli.config_file)?;
+    let config = Config::new(&cli.config_file, cli.restricted)?;
 
     let secrets = utils::env::get_secrets(&config.services)?;
 

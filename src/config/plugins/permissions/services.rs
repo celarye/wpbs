@@ -19,14 +19,15 @@ pub struct PluginPermissionsServices {
 }
 
 impl PluginPermissionsServices {
-    pub fn calculate(&mut self) {
+    pub fn calculate(&mut self, restricted: bool) {
         if self
             .job_scheduler
             .contains(&PluginPermissionsJobScheduler::All)
+            || (self.job_scheduler.is_empty() && !restricted)
         {
             self.job_scheduler = vec![PluginPermissionsJobScheduler::ScheduledJobs];
         }
 
-        self.discord.calculate();
+        self.discord.calculate(restricted);
     }
 }

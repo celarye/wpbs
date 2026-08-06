@@ -21,7 +21,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn new(file_path: &Path) -> Result<Self> {
+    pub fn new(file_path: &Path, restricted: bool) -> Result<Self> {
         info!("Loading and parsing the config file");
 
         let file_bytes = fs::read(file_path)?;
@@ -32,7 +32,7 @@ impl Config {
         config
             .plugins
             .values_mut()
-            .for_each(|p| p.permissions.calculate());
+            .for_each(|p| p.permissions.calculate(restricted));
 
         Ok(config)
     }
