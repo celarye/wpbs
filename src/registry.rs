@@ -11,13 +11,8 @@ use std::{
 
 use anyhow::{Result, bail};
 use fjall::{Database, Keyspace, KeyspaceCreateOptions};
-use futures_util::TryStreamExt;
 use semver::Version;
-use tokio::{
-    fs::{self, File},
-    io::AsyncWriteExt,
-    task::JoinHandle,
-};
+use tokio::{fs, task::JoinHandle};
 use tracing::{error, info};
 use uuid::Uuid;
 use wasm_pkg_client::{
@@ -172,13 +167,7 @@ async fn fetch_plugin(
 
     let release = client.get_release(&package_ref, plugin_version).await?;
 
-    let mut stream = client.get_content(&package_ref, &release).await?;
-
-    let mut file = File::create("output.wasm").await?;
-
-    while let Some(chunk) = stream.try_next().await? {
-        file.write_all(&chunk).await?;
-    }
+    let _ = client.get_content(&package_ref, &release).await?;
 
     Ok(release)
 }
