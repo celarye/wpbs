@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Copyright © 2026 Eduard Smet */
 
+use std::collections::HashSet;
+
 use serde::Deserialize;
 use twilight_gateway::Intents;
-
-pub struct InternalIntents(pub Intents);
 
 #[derive(Default, Deserialize)]
 pub struct ConfigDiscord {
@@ -17,12 +17,13 @@ pub struct ConfigDiscord {
 #[derive(Default, Deserialize)]
 pub struct ConfigDiscordSettings {
     #[serde(default)]
-    pub intents: Vec<ConfigDiscordIntents>,
+    pub intents: HashSet<ConfigDiscordIntents>,
 }
 
-#[derive(Deserialize, PartialEq)]
+#[derive(Deserialize, Eq, Hash, PartialEq)]
 pub enum ConfigDiscordIntents {
     All,
+    AllNonPrivileged,
     Guilds,
     GuildMembers,
     GuildModeration,
@@ -46,17 +47,22 @@ pub enum ConfigDiscordIntents {
     DirectMessagePolls,
 }
 
-impl From<Vec<ConfigDiscordIntents>> for InternalIntents {
-    fn from(values: Vec<ConfigDiscordIntents>) -> Self {
+pub struct InternalIntents(pub Intents);
+
+impl From<HashSet<ConfigDiscordIntents>> for InternalIntents {
+    fn from(values: HashSet<ConfigDiscordIntents>) -> Self {
         if values.contains(&ConfigDiscordIntents::All) {
             return Self(Intents::all());
         }
 
-        let mut result = Self(Intents::empty());
+        let mut result = Intents::empty();
 
         for value in values {
-            result.0 |= match value {
+            result |= match value {
                 ConfigDiscordIntents::All => unreachable!(),
+                ConfigDiscordIntents::AllNonPrivileged => {
+                    !(Intents::GUILD_MEMBERS | Intents::GUILD_PRESENCES | Intents::MESSAGE_CONTENT)
+                }
                 ConfigDiscordIntents::Guilds => Intents::GUILDS,
                 ConfigDiscordIntents::GuildMembers => Intents::GUILD_MEMBERS,
                 ConfigDiscordIntents::GuildModeration => Intents::GUILD_MODERATION,
@@ -83,6 +89,6 @@ impl From<Vec<ConfigDiscordIntents>> for InternalIntents {
             };
         }
 
-        result
+        Self(result)
     }
 }
