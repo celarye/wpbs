@@ -105,6 +105,7 @@ impl InternalRuntime {
                         "Plugin is not allowed to register for this event",
                     )),
                 ));
+                continue;
             }
 
             let key = format!(
