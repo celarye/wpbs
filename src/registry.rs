@@ -176,9 +176,7 @@ fn get_plugin_uuid(
 ) -> Result<Uuid> {
     let key = format!("{config_name}:{plugin_user_id}");
 
-    let plugin_uuid = if let Ok(pplugin_uuid_bytes) = plugins_keyspace.get(&key)
-        && let Some(plugin_uuid_bytes) = pplugin_uuid_bytes
-    {
+    let plugin_uuid = if let Some(plugin_uuid_bytes) = plugins_keyspace.get(&key)? {
         Uuid::from_slice(&plugin_uuid_bytes).unwrap()
     } else {
         Uuid::new_v4()
