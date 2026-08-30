@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use anyhow::{Result, bail};
 use twilight_gateway::MessageSender;
 use twilight_http::{Client, request::Request, routing::Route};
 use twilight_model::gateway::{
@@ -15,12 +16,8 @@ use twilight_model::gateway::{
 };
 
 use crate::{
-    runtime::plugins::bindings::services::discord::{
-        wpbs::shared::shared_types::HostError,
-        wpbs_services::discord::{
-            discord_import_functions::DiscordRequests,
-            discord_types::{Body, DiscordResponses},
-        },
+    runtime::plugins::bindings::services::discord::wpbs_services::discord::discord_types::{
+        Body, DiscordRequests, DiscordResponses,
     },
     services::discord::Discord,
 };
@@ -32,7 +29,7 @@ impl Discord {
         http_client: Arc<Client>,
         shard_message_senders: Arc<Vec<MessageSender>>,
         request: DiscordRequests,
-    ) -> Result<Option<DiscordResponses>, HostError> {
+    ) -> Result<Option<DiscordResponses>> {
         let request = match request {
             // Shard message sender commands
             DiscordRequests::RequestGuildMembers((guild_id, body)) => {
@@ -42,9 +39,9 @@ impl Discord {
                 let d = match sonic_rs::from_slice::<RequestGuildMembersInfo>(&body) {
                     Ok(d) => d,
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while deserializing RequestGuildMembersInfo, error: {err}",
-                        ));
+                        );
                     }
                 };
 
@@ -60,9 +57,7 @@ impl Discord {
                 None
             }
             DiscordRequests::RequestSoundboardSounds(_guild_ids) => {
-                return Err(HostError::from(
-                    "RequestSoundboardSounds has not yet been implemented in Twilight.",
-                ));
+                bail!("RequestSoundboardSounds has not yet been implemented in Twilight.");
             }
             DiscordRequests::UpdateVoiceState((guild_id, body)) => {
                 let guild_shard_message_sender =
@@ -71,9 +66,9 @@ impl Discord {
                 let d = match sonic_rs::from_slice::<UpdateVoiceStateInfo>(&body) {
                     Ok(d) => d,
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while deserializing UpdateVoiceStateInfo, error: {err}",
-                        ));
+                        );
                     }
                 };
 
@@ -94,9 +89,9 @@ impl Discord {
                 let d = match sonic_rs::from_slice::<UpdatePresencePayload>(&body) {
                     Ok(d) => d,
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while deserializing UpdatePresencePayload, error: {err}",
-                        ));
+                        );
                     }
                 };
 
@@ -122,9 +117,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -135,9 +130,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -148,9 +143,7 @@ impl Discord {
                     Body::Json(bytes) => request_builder.body(bytes),
                     Body::Form(form) => {
                         if form.boundary.len() != 15 {
-                            return Err(HostError::from(
-                                "Form boundaries should have a length of 15 bytes",
-                            ));
+                            bail!("Form boundaries should have a length of 15 bytes");
                         }
 
                         request_builder.multipart(form.boundary.try_into().unwrap(), form.buffer)
@@ -160,9 +153,9 @@ impl Discord {
                 match request_builder.build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -173,9 +166,7 @@ impl Discord {
                     Body::Json(bytes) => request_builder.body(bytes),
                     Body::Form(form) => {
                         if form.boundary.len() != 15 {
-                            return Err(HostError::from(
-                                "Form boundaries should have a length of 15 bytes",
-                            ));
+                            bail!("Form boundaries should have a length of 15 bytes");
                         }
 
                         request_builder.multipart(form.boundary.try_into().unwrap(), form.buffer)
@@ -185,9 +176,9 @@ impl Discord {
                 match request_builder.build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -198,9 +189,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -214,9 +205,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -229,9 +220,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -239,9 +230,9 @@ impl Discord {
                 match Request::builder(&Route::GetActiveThreads { guild_id }).build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -249,9 +240,9 @@ impl Discord {
                 match Request::builder(&Route::GetChannel { channel_id }).build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -265,9 +256,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -281,9 +272,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -297,9 +288,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -312,9 +303,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -329,9 +320,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -351,9 +342,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -361,9 +352,9 @@ impl Discord {
                 match Request::builder(&Route::JoinThread { channel_id }).build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -371,9 +362,9 @@ impl Discord {
                 match Request::builder(&Route::LeaveThread { channel_id }).build() {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -386,9 +377,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -399,9 +390,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -419,9 +410,9 @@ impl Discord {
                 {
                     Ok(request) => Some(request),
                     Err(err) => {
-                        return Err(format!(
+                        bail!(
                             "Something went wrong while building a Discord request, error: {err}"
-                        ));
+                        );
                     }
                 }
             }
@@ -431,13 +422,15 @@ impl Discord {
             match http_client.request::<Vec<u8>>(request).await {
                 Ok(response) => match response.bytes().await {
                     Ok(response_bytes) => Ok(Some(response_bytes)),
-                    Err(err) => Err(format!(
-                        "Something went wrong while deserializing the Discord response, error: {err}"
-                    )),
+                    Err(err) => {
+                        bail!(
+                            "Something went wrong while deserializing the Discord response, error: {err}"
+                        );
+                    }
                 },
-                Err(err) => Err(format!(
-                    "Something went wrong while making the Discord request, error: {err}"
-                )),
+                Err(err) => {
+                    bail!("Something went wrong while making the Discord request, error: {err}");
+                }
             }
         } else {
             Ok(None)
