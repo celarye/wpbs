@@ -1,0 +1,149 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright © 2026 Eduard Smet */
+
+use wpbs:shared/shared-types@0.1.0;
+
+@since(version = 0.1.0)
+interface discord-types {
+    use shared-types.{host-error, json, plugin-error, uuid};
+
+    @since(version = 0.1.0)
+    type discord-snowflake = u64;
+
+    @since(version = 0.1.0)
+    variant discord-body {
+        json(json),
+        form(discord-form),
+    }
+
+    @since(version = 0.1.0)
+    record discord-form {
+        boundary: list<u8, 15>,
+        buffer: list<u8>,
+    }
+
+    @since(version = 0.1.0)
+    enum discord-event-kinds {
+        message-create,
+        interaction-create,
+        thread-create,
+        thread-delete,
+        thread-list-sync,
+        thread-member-update,
+        thread-members-update,
+        thread-update,
+    }
+
+    @since(version = 0.1.0)
+    record discord-registrations {
+        events: option<discord-registrations-events>,
+        interactions: option<discord-registrations-interactions>,
+    }
+
+    @since(version = 0.1.0)
+    type discord-registrations-events = list<discord-event-kinds>;
+
+    @since(version = 0.1.0)
+    record discord-registrations-interactions {
+        application-commands: option<map<string, json>>,
+        message-components: option<list<string>>,
+        modals: option<list<string>>,
+    }
+
+    @since(version = 0.1.0)
+    record discord-registrations-result {
+        events: option<discord-registrations-events-result>,
+        interactions: option<discord-registrations-interactions-result>,
+    }
+
+    @since(version = 0.1.0)
+    type discord-registrations-events-result = result<list<tuple<discord-event-kinds, result<_, host-error>>>, host-error>;
+
+    @since(version = 0.1.0)
+    record discord-registrations-interactions-result {
+        application-commands: option<result<_, host-error>>,
+        message-components: option<result<map<string, uuid>, host-error>>,
+        modals: option<result<map<string, uuid>, host-error>>,
+    }
+
+    @since(version = 0.1.0)
+    record discord-deregistrations {
+        events: option<discord-deregistrations-events>,
+        interactions: option<discord-deregistrations-interactions>,
+    }
+
+    @since(version = 0.1.0)
+    type discord-deregistrations-events = list<discord-event-kinds>;
+
+    @since(version = 0.1.0)
+    record discord-deregistrations-interactions {
+        application-commands: option<list<string>>,
+        message-components: option<list<string>>,
+        modals: option<list<string>>,
+    }
+
+    @since(version = 0.1.0)
+    record discord-deregistrations-result {
+        events: option<discord-deregistrations-events-result>,
+        interactions: option<discord-deregistrations-interactions-result>
+    }
+
+    @since(version = 0.1.0)
+    type discord-deregistrations-events-result = result<list<tuple<discord-event-kinds, result<_, host-error>>>, host-error>;
+
+    @since(version = 0.1.0)
+    record discord-deregistrations-interactions-result {
+        application-commands: option<result<map<string, result<_, host-error>>, host-error>>,
+        message-components: option<result<map<string, result<_, host-error>>, host-error>>,
+        modals: option<result<map<string, result<_, host-error>>, host-error>>,
+    }
+
+    @since(version = 0.1.0)
+    variant discord-requests {
+        request-guild-members(tuple<discord-snowflake, json>),
+        request-soundboard-sounds(list<discord-snowflake>),
+        update-voice-state(tuple<discord-snowflake, json>),
+        update-presence(json),
+
+        add-thread-member(tuple<discord-snowflake, discord-snowflake>),
+        edit-message(tuple<discord-snowflake, discord-snowflake, discord-body>),
+        create-ban(tuple<discord-snowflake, discord-snowflake, json>),
+        create-forum-thread(tuple<discord-snowflake, discord-body>),
+        create-message(tuple<discord-snowflake, discord-body>),
+        create-thread(tuple<discord-snowflake, json>),
+        create-thread-from-message(tuple<discord-snowflake, discord-snowflake, json>),
+        delete-message(tuple<discord-snowflake, discord-snowflake>),
+        get-active-threads(discord-snowflake),
+        get-channel(discord-snowflake),
+        get-joined-private-archived-threads(tuple<option<discord-snowflake>, discord-snowflake, option<discord-snowflake>>),
+        get-private-archived-threads(tuple<option<string>, discord-snowflake, option<discord-snowflake>>),
+        get-public-archived-threads(tuple<option<string>, discord-snowflake, option<discord-snowflake>>),
+        get-thread-member(tuple<discord-snowflake, discord-snowflake>),
+        get-thread-members(tuple<option<discord-snowflake>, discord-snowflake, option<u32>, option<bool>>),
+        interaction-callback(tuple<discord-snowflake, string, bool, json>),
+        join-thread(discord-snowflake),
+        leave-thread(discord-snowflake),
+        remove-thread-member(tuple<discord-snowflake, discord-snowflake>),
+        update-member(tuple<discord-snowflake, discord-snowflake, json>),
+        update-interaction-original(tuple<discord-snowflake, string, json>),
+    }
+
+    @since(version = 0.1.0)
+    type discord-responses = json;
+
+    @since(version = 0.1.0)
+    type discord-registrations-result-application-commands = map<string, result<discord-snowflake, host-error>>;
+
+    @since(version = 0.1.0)
+    variant discord-events {
+        interaction-create(json),
+        message-create(json),
+        message-update(json),
+        thread-create(json),
+        thread-delete(json),
+        thread-list-sync(json),
+        thread-member-update(json),
+        thread-members-update(json),
+        thread-update(json),
+    }
+}
