@@ -133,6 +133,7 @@ impl Discord {
                             self.core_tx.clone(),
                         ));
                     }
+                    DiscordMessages::DeregisterApplicationCommands(_) => todo!(),
                     DiscordMessages::Request(request, sender) => {
                         let http_client = self.http_client.clone();
                         let shard_message_senders = self.shard_message_senders.clone();
