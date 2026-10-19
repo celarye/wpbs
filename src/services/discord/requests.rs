@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use songbird::shards::TwilightMap as ShardMessageSenders;
 use twilight_gateway::MessageSender;
 use twilight_http::{Client, request::Request, routing::Route};
 use twilight_model::gateway::{
@@ -27,7 +28,7 @@ impl Discord {
     #[allow(clippy::too_many_lines)]
     pub async fn request(
         http_client: Arc<Client>,
-        shard_message_senders: Arc<Vec<MessageSender>>,
+        shard_message_senders: Arc<ShardMessageSenders>,
         request: DiscordRequests,
     ) -> Result<Option<DiscordResponses>, HostError> {
         let request = match request {
@@ -86,7 +87,7 @@ impl Discord {
                 None
             }
             DiscordRequests::UpdatePresence(body) => {
-                let guild_shard_message_sender = shard_message_senders.first().unwrap();
+                let guild_shard_message_sender = shard_message_senders.get(0).unwrap();
 
                 let d = match sonic_rs::from_str::<UpdatePresencePayload>(&body) {
                     Ok(d) => d,
@@ -470,11 +471,11 @@ impl Discord {
     }
 
     fn get_guild_shard_message_sender(
-        shard_message_senders: &Arc<Vec<MessageSender>>,
+        shard_message_senders: &Arc<ShardMessageSenders>,
         guild_id: u64,
     ) -> &MessageSender {
         shard_message_senders
-            .get((guild_id >> 22) as usize % shard_message_senders.len())
+            .get(u32::try_from((guild_id >> 22) % shard_message_senders.shard_count()).unwrap())
             .unwrap()
     }
 }
