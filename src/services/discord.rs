@@ -5,6 +5,7 @@ use std::{iter, sync::Arc};
 
 use anyhow::Result;
 use fjall::{Database, KeyspaceCreateOptions};
+use songbird::{Songbird, shards::TwilightMap as ShardMessageSenders};
 use tokio::{
     sync::mpsc::{UnboundedReceiver, UnboundedSender},
     task::{self, JoinHandle},
@@ -12,9 +13,7 @@ use tokio::{
 use tokio_util::task::TaskTracker;
 use tracing::{error, info};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
-use twilight_gateway::{
-    CloseFrame, Config, EventType, EventTypeFlags, Intents, MessageSender, Shard, StreamExt,
-};
+use twilight_gateway::{CloseFrame, Config, EventType, EventTypeFlags, Intents, Shard, StreamExt};
 use twilight_http::Client;
 
 use crate::{
@@ -33,7 +32,12 @@ mod requests;
 pub struct Discord {
     http_client: Arc<Client>,
     shards: Vec<(Shard, Intents)>,
-    shard_message_senders: Arc<Vec<MessageSender>>,
+    shard_message_senders: Arc<ShardMessageSenders>,
+    // TODO: Implement:
+    // - Voice Channel specific gateway events
+    // - Plugin endpoints to play and listen to audio in voice channels
+    #[allow(unused)]
+    songbird: Songbird,
     cache: Arc<InMemoryCache>,
     database: Database,
     core_tx: Arc<UnboundedSender<CoreMessages>>,
@@ -75,15 +79,25 @@ impl Discord {
 
         let connection_info = http_client.gateway().authed().await?.model().await?;
 
-        let (shard_message_senders, shards) =
-            twilight_gateway::bucket(0, 1, connection_info.shards)
-                .zip(iter::repeat_n(
-                    config.clone(),
-                    connection_info.shards as usize,
-                ))
-                .map(|(shard_id, config)| Shard::with_config(shard_id, config))
-                .map(|shard| (shard.sender(), (shard, intents)))
-                .collect::<(Vec<_>, Vec<_>)>();
+        let shards = twilight_gateway::bucket(0, 1, connection_info.shards)
+            .zip(iter::repeat_n(
+                config.clone(),
+                connection_info.shards as usize,
+            ))
+            .map(|(shard_id, config)| Shard::with_config(shard_id, config))
+            .map(|shard| (shard, intents))
+            .collect::<Vec<_>>();
+
+        let shard_message_senders = Arc::new(ShardMessageSenders::new(
+            shards
+                .iter()
+                .map(|s| (s.0.id().number(), s.0.sender()))
+                .collect(),
+        ));
+
+        let current_user = http_client.current_user().await?.model().await?;
+
+        let songbird = Songbird::twilight(shard_message_senders.clone(), current_user.id);
 
         let cache_resource_type = ResourceType::USER_CURRENT | ResourceType::GUILD;
 
@@ -97,7 +111,8 @@ impl Discord {
         Ok(Self {
             http_client: Arc::new(http_client),
             shards,
-            shard_message_senders: Arc::new(shard_message_senders),
+            shard_message_senders,
+            songbird,
             cache,
             database,
             core_tx: Arc::new(core_tx),
@@ -190,8 +205,12 @@ impl Discord {
     async fn shutdown(&self, shard_task_tracker: TaskTracker) {
         info!("Shutting the Discord service down");
 
-        for shard_message_sender in self.shard_message_senders.iter() {
-            let _ = shard_message_sender.close(CloseFrame::NORMAL);
+        for shard_id in 0..self.shard_message_senders.shard_count() {
+            let _ = self
+                .shard_message_senders
+                .get(u32::try_from(shard_id).unwrap())
+                .unwrap()
+                .close(CloseFrame::NORMAL);
         }
 
         shard_task_tracker.close();
