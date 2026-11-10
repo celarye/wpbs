@@ -1,0 +1,36 @@
+[workspace]
+resolver = "3"
+members = []
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Eduard Smet <contact@celarye.dev>"]
+edition = "2024"
+rust-version = "1.100.0"
+homepage = "https://wpbs.celarye.dev"
+repository = "https://github.com/wpbs-rs/wpbs"
+license = "AGPL-3.0-or-later"
+publish = false
+
+[workspace.dependencies]
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
+[package]
+name = "wpbs-cli"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Command-line interface for wpbs"
+documentation = "https://wpbs.celarye.dev/docs"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

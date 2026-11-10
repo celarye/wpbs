@@ -1,0 +1,27 @@
+version = 1
+
+[[annotations]]
+path = [
+  "src/**",
+  "crates/**",
+  "Cargo.toml",
+  "Cargo.lock",
+  ".cargo/config.toml",
+  "rust-toolchain.toml",
+]
+SPDX-FileCopyrightText = "2026 Eduard Smet <contact@celarye.dev>"
+SPDX-License-Identifier = "AGPL-3.0-or-later"
+
+[[annotations]]
+path = [
+  ".github/**",
+  ".gitignore",
+  ".gitmodules",
+  "README.md",
+  "CHANGELOG.md",
+  "Dockerfile",
+  ".dockerignore",
+  "compose.yaml",
+]
+SPDX-FileCopyrightText = "2026 Eduard Smet <contact@celarye.dev>"
+SPDX-License-Identifier = "CC0-1.0"
