@@ -1,0 +1,22 @@
+name: REUSE
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: true
+
+jobs:
+  reuse:
+    name: Run REUSE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run REUSE Compliance Checks
+        uses: fsfe/reuse-action@v6

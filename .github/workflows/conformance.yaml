@@ -1,4 +1,4 @@
-name: Conformance Checks
+name: Conformance
 
 on:
   pull_request:
@@ -9,13 +9,96 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  conformance:
-    name: Conformance Checks
+  rustfmt:
+    name: Run rustfmt
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Branch
-        uses: actions/checkout@v6
-      - name: Run Clippy Checks
-        run: cargo clippy --locked -- -W clippy::pedantic -D warnings
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set Up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+
       - name: Run rustfmt Checks
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all --check
+
+  clippy:
+    name: Run Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Set Up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+
+      - name: Run Clippy Checks
+        run: cargo clippy --locked --workspace --all-targets --all-features
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Set Up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+
+      - name: Run Tests
+        run: cargo test --locked --workspace --all-features
+
+  docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Set Up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          cache: false
+
+      - name: Build Docs
+        run: cargo doc --locked --workspace --all-features --no-deps --document-private-items
+
+  msrv:
+    name: Check MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Branch
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          submodules: true
+
+      - name: Get MSRV
+        id: msrv
+        run: echo "version=$(yq '.workspace.package.rust-version' Cargo.toml)" >> "$GITHUB_OUTPUT"
+
+      - name: Set Up Rust Toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v2
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          cache: false
+
+      - name: Check MSRV
+        run: cargo check --locked --workspace --all-targets --all-features

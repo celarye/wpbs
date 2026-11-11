@@ -25,7 +25,7 @@ jobs:
       is_prerelease: ${{ steps.eval.outputs.is_prerelease }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Evaluate Tags
         id: eval
@@ -76,7 +76,7 @@ jobs:
             cpu: cortex-a76
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install musl-tools
         if: contains(matrix.target, '-musl')
@@ -108,7 +108,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Publish Release
         env:
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Download amd64 Binary
         uses: actions/download-artifact@v8
